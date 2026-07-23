@@ -1,0 +1,2 @@
+{"sentence_id":"toy_1","tokens":["John","likes","Mary"],"lemmas":["John","like","Mary"],"pos":["PROPN","VERB","PROPN"],"morph":[{},{},{}],"metadata":{"source":"toy","split":"train"}}
+{"sentence_id":"toy_2","tokens":["Mary","sleeps"],"lemmas":["Mary","sleep"],"pos":["PROPN","VERB"],"morph":[{},{}],"metadata":{"source":"toy","split":"train"}}

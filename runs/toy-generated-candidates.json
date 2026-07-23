@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "word": "John",
+      "lemma": "John",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Mary",
+      "lemma": "Mary",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "likes",
+      "lemma": "like",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "sleeps",
+      "lemma": "sleep",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    }
+  ]
+}

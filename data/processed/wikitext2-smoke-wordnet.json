@@ -1,0 +1,258 @@
+{
+  "'": [],
+  ",": [],
+  ".": [],
+  "2010": [],
+  "2011": [],
+  "27": [
+    "ADJ",
+    "NOUN"
+  ],
+  "a": [
+    "NOUN"
+  ],
+  "also": [
+    "ADV"
+  ],
+  "anime": [
+    "NOUN"
+  ],
+  "announce": [
+    "VERB"
+  ],
+  "approximately": [
+    "ADV"
+  ],
+  "artist": [
+    "NOUN"
+  ],
+  "assign": [
+    "VERB"
+  ],
+  "be": [
+    "NOUN",
+    "VERB"
+  ],
+  "black": [
+    "ADJ",
+    "NOUN",
+    "VERB"
+  ],
+  "both": [
+    "ADJ"
+  ],
+  "by": [
+    "ADV"
+  ],
+  "can": [
+    "NOUN",
+    "VERB"
+  ],
+  "change": [
+    "NOUN",
+    "VERB"
+  ],
+  "character": [
+    "NOUN",
+    "VERB"
+  ],
+  "class": [
+    "NOUN",
+    "VERB"
+  ],
+  "color": [
+    "ADJ",
+    "NOUN",
+    "VERB"
+  ],
+  "decide": [
+    "VERB"
+  ],
+  "development": [
+    "NOUN"
+  ],
+  "during": [],
+  "early": [
+    "ADJ",
+    "ADV"
+  ],
+  "europan": [
+    "NOUN"
+  ],
+  "first": [
+    "ADJ",
+    "ADV",
+    "NOUN"
+  ],
+  "g": [
+    "NOUN"
+  ],
+  "game": [
+    "ADJ",
+    "NOUN",
+    "VERB"
+  ],
+  "handle": [
+    "NOUN",
+    "VERB"
+  ],
+  "he": [
+    "NOUN"
+  ],
+  "i": [
+    "ADJ",
+    "NOUN"
+  ],
+  "in": [
+    "ADJ",
+    "ADV",
+    "NOUN"
+  ],
+  "january": [
+    "NOUN"
+  ],
+  "large": [
+    "ADJ",
+    "ADV",
+    "NOUN"
+  ],
+  "lyric": [
+    "ADJ",
+    "NOUN",
+    "VERB"
+  ],
+  "main": [
+    "ADJ",
+    "NOUN"
+  ],
+  "mission": [
+    "NOUN"
+  ],
+  "nameless": [
+    "ADJ"
+  ],
+  "new": [
+    "ADJ",
+    "ADV"
+  ],
+  "nine": [
+    "ADJ",
+    "NOUN"
+  ],
+  "note": [
+    "NOUN",
+    "VERB"
+  ],
+  "november": [
+    "NOUN"
+  ],
+  "of": [],
+  "one": [
+    "ADJ",
+    "NOUN"
+  ],
+  "opening": [
+    "ADJ",
+    "NOUN",
+    "VERB"
+  ],
+  "place": [
+    "NOUN",
+    "VERB"
+  ],
+  "positively": [
+    "ADV"
+  ],
+  "produce": [
+    "NOUN",
+    "VERB"
+  ],
+  "production": [
+    "NOUN"
+  ],
+  "release": [
+    "NOUN",
+    "VERB"
+  ],
+  "respective": [
+    "ADJ"
+  ],
+  "s": [
+    "NOUN"
+  ],
+  "script": [
+    "NOUN",
+    "VERB"
+  ],
+  "second": [
+    "ADJ",
+    "ADV",
+    "NOUN",
+    "VERB"
+  ],
+  "serious": [
+    "ADJ"
+  ],
+  "single": [
+    "ADJ",
+    "NOUN",
+    "VERB"
+  ],
+  "song": [
+    "NOUN"
+  ],
+  "story": [
+    "NOUN"
+  ],
+  "switch": [
+    "NOUN",
+    "VERB"
+  ],
+  "system": [
+    "NOUN"
+  ],
+  "take": [
+    "NOUN",
+    "VERB"
+  ],
+  "team": [
+    "NOUN",
+    "VERB"
+  ],
+  "the": [],
+  "their": [],
+  "to": [],
+  "tone": [
+    "NOUN",
+    "VERB"
+  ],
+  "trooper": [
+    "NOUN"
+  ],
+  "up": [
+    "ADJ",
+    "ADV",
+    "VERB"
+  ],
+  "upon": [],
+  "war": [
+    "NOUN",
+    "VERB"
+  ],
+  "weapon": [
+    "NOUN"
+  ],
+  "work": [
+    "NOUN",
+    "VERB"
+  ],
+  "write": [
+    "VERB"
+  ],
+  "writer": [
+    "NOUN"
+  ],
+  "year": [
+    "NOUN"
+  ]
+}

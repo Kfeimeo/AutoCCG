@@ -1,0 +1,93 @@
+cabal-version:      3.0
+name:               ccg-induction
+version:            0.1.0.0
+synopsis:           Bounded and interpretable CCG lexical category induction
+license:            BSD-3-Clause
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-uni-patterns -Wincomplete-record-updates
+  default-language: GHC2024
+
+library
+  import: warnings
+  hs-source-dirs: src
+  exposed-modules:
+      CCG.Atom
+      CCG.Category
+      CCG.CategoryStore
+      CCG.Combinator
+      CCG.TypeRaising
+      CCG.Derivation
+      Corpus.Types
+      Corpus.Jsonl
+      Corpus.PlainText
+      Evaluation.Coverage
+      Evaluation.Ambiguity
+      Evaluation.Gold
+      Evaluation.Export
+      Grammar.Types
+      Grammar.Cost
+      Grammar.Beam
+      Grammar.Induction
+      Lexicon.Types
+      Lexicon.Initialization
+      Lexicon.Candidate
+      Lexicon.CandidateLexicon
+      Lexicon.Repair
+      Lexicon.Compression
+      Parser.Config
+      Parser.State
+      Parser.Beam
+      Parser.Incremental
+      Parser.FailureFrontier
+      Parser.ParseCount
+      Serialization.Grammar
+      Serialization.Lexicon
+      Serialization.Derivation
+      CLI
+  build-depends:
+      base >=4.18 && <5,
+      aeson >=2.2,
+      bytestring,
+      containers,
+      directory,
+      filepath,
+      hashable,
+      mtl,
+      optparse-applicative,
+      parallel,
+      text,
+      time,
+      unordered-containers,
+      vector,
+      yaml
+
+executable ccg-induction
+  import: warnings
+  ghc-options: -threaded -rtsopts
+  hs-source-dirs: app
+  main-is: Main.hs
+  build-depends: base, ccg-induction
+
+test-suite ccg-induction-test
+  import: warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Main.hs
+  other-modules: CategorySpec CandidateLexiconSpec CombinatorSpec ParserSpec RepairSpec CompressionSpec InductionSpec PropertySpec
+  build-depends:
+      base,
+      ccg-induction,
+      containers,
+      tasty,
+      tasty-hunit,
+      tasty-quickcheck,
+      text
+
+benchmark ccg-induction-bench
+  type: exitcode-stdio-1.0
+  hs-source-dirs: bench
+  main-is: Main.hs
+  build-depends: base, ccg-induction, criterion, text
+  default-language: GHC2024

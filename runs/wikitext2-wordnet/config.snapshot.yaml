@@ -1,0 +1,94 @@
+categories:
+  max_depth: 5
+  max_slashes: 4
+  max_arity: 3
+
+parser:
+  beam_width: 128
+  max_stack_depth: 12
+  max_states_per_position: 2048
+  max_reductions_per_shift: 8
+  parse_count_cap: 10000
+
+grammar:
+  beam_width: 16
+  max_repairs_per_failure: 32
+  max_joint_repair_width: 2
+
+rules:
+  allow_forward_application: true
+  allow_backward_application: true
+  allow_forward_composition: true
+  allow_backward_composition: true
+  allow_crossed_composition: false
+  allow_generalized_composition: false
+
+candidate_constraints:
+  enabled: true
+  candidate_lexicon_path: data/processed/candidate_lexicon.json
+  use_wordnet_inventory: true
+  use_pos_templates: true
+  use_seed_lexicon: true
+  unknown_policy: small_default
+  max_candidates_per_word: 8
+  reject_candidates_outside_category_bounds: true
+
+initialization:
+  use_locked_seed_entries: true
+  activate_single_candidate_words: true
+  activate_best_candidate_per_word: false
+  max_initial_prior_cost: 0
+
+repair:
+  use_candidate_lexicon_first: true
+  max_candidates_generated: 100
+  max_candidates_validated: 10
+  allow_unknown_fallback: true
+  unknown_fallback_max_candidates: 5
+
+pos_to_categories:
+  PROPN:
+    - {category: "NP", prior_cost: 0}
+  PRON:
+    - {category: "NP", prior_cost: 0}
+  NOUN:
+    - {category: "N", prior_cost: 0}
+    - {category: "NP", prior_cost: 1}
+  DET:
+    - {category: "NP/N", prior_cost: 0}
+  ADJ:
+    - {category: "N/N", prior_cost: 0}
+    - {category: "S\\NP", prior_cost: 3}
+  VERB:
+    - {category: "S\\NP", prior_cost: 1}
+    - {category: "(S\\NP)/NP", prior_cost: 0}
+    - {category: "((S\\NP)/NP)/NP", prior_cost: 4}
+    - {category: "(S\\NP)/PP", prior_cost: 3}
+  ADV:
+    - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+    - {category: "S\\S", prior_cost: 2}
+  ADP:
+    - {category: "PP/NP", prior_cost: 0}
+    - {category: "(N\\N)/NP", prior_cost: 3}
+
+seed_lexicon:
+  the:
+    - {category: "NP/N", prior_cost: 0, lock: true}
+  a:
+    - {category: "NP/N", prior_cost: 0, lock: true}
+  an:
+    - {category: "NP/N", prior_cost: 0, lock: true}
+  of:
+    - {category: "(N\\N)/NP", prior_cost: 1, lock: false}
+    - {category: "PP/NP", prior_cost: 2, lock: false}
+  in:
+    - {category: "PP/NP", prior_cost: 0, lock: false}
+  to:
+    - {category: "PP/NP", prior_cost: 2, lock: false}
+  not:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+
+training:
+  seed: 42
+  compression_interval: 100
+  unresolved_policy: queue

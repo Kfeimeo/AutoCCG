@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "sentence_count": 12,
+  "unresolved_sentence_count": 12,
+  "atomic_category_count": 0,
+  "atomic_categories": [],
+  "compound_category_template_count": 0,
+  "average_categories_per_word": 0.0,
+  "category_depth_distribution": {},
+  "rule_uses": {
+    "application": 0,
+    "composition": 0,
+    "type_raising": 0
+  },
+  "rule_use_ratios": {
+    "application": 0.0,
+    "composition": 0.0,
+    "type_raising": 0.0
+  },
+  "repairs_by_sentence_length": {
+    "7": {
+      "sentences": 1,
+      "repairs": 0,
+      "mean_repairs": 0.0
+    },
+    "9": {
+      "sentences": 4,
+      "repairs": 0,
+      "mean_repairs": 0.0
+    },
+    "10": {
+      "sentences": 3,
+      "repairs": 0,
+      "mean_repairs": 0.0
+    },
+    "11": {
+      "sentences": 3,
+      "repairs": 0,
+      "mean_repairs": 0.0
+    },
+    "12": {
+      "sentences": 1,
+      "repairs": 0,
+      "mean_repairs": 0.0
+    }
+  },
+  "words_with_most_second_categories": [],
+  "singleton_special_categories": [],
+  "unresolved_examples": [
+    {
+      "sentence_id": "wikitext2_train_0000001",
+      "tokens": [
+        "A",
+        "large",
+        "team",
+        "of",
+        "writers",
+        "handled",
+        "the",
+        "script",
+        "."
+      ],
+      "length": 9
+    },
+    {
+      "sentence_id": "wikitext2_train_0000002",
+      "tokens": [
+        "Up",
+        "to",
+        "nine",
+        "characters",
+        "can",
+        "be",
+        "assigned",
+        "to",
+        "a",
+        "single",
+        "mission",
+        "."
+      ],
+      "length": 12
+    },
+    {
+      "sentence_id": "wikitext2_train_0000003",
+      "tokens": [
+        "Troopers",
+        "can",
+        "switch",
+        "classes",
+        "by",
+        "changing",
+        "their",
+        "assigned",
+        "weapon",
+        "."
+      ],
+      "length": 10
+    },
+    {
+      "sentence_id": "wikitext2_train_0000004",
+      "tokens": [
+        "The",
+        "game",
+        "takes",
+        "place",
+        "during",
+        "the",
+        "Second",
+        "Europan",
+        "War",
+        "."
+      ],
+      "length": 10
+    },
+    {
+      "sentence_id": "wikitext2_train_0000005",
+      "tokens": [
+        "Development",
+        "work",
+        "took",
+        "approximately",
+        "one",
+        "year",
+        "."
+      ],
+      "length": 7
+    },
+    {
+      "sentence_id": "wikitext2_train_0000006",
+      "tokens": [
+        "The",
+        "newer",
+        "systems",
+        "were",
+        "decided",
+        "upon",
+        "early",
+        "in",
+        "development",
+        "."
+      ],
+      "length": 10
+    },
+    {
+      "sentence_id": "wikitext2_train_0000007",
+      "tokens": [
+        "The",
+        "main",
+        "color",
+        "of",
+        "the",
+        "Nameless",
+        "was",
+        "black",
+        "."
+      ],
+      "length": 9
+    },
+    {
+      "sentence_id": "wikitext2_train_0000008",
+      "tokens": [
+        "The",
+        "anime",
+        "opening",
+        "was",
+        "produced",
+        "by",
+        "Production",
+        "I",
+        ".",
+        "G",
+        "."
+      ],
+      "length": 11
+    },
+    {
+      "sentence_id": "wikitext2_train_0000009",
+      "tokens": [
+        "The",
+        "game",
+        "was",
+        "released",
+        "January",
+        "27",
+        ",",
+        "2011",
+        "."
+      ],
+      "length": 9
+    },
+    {
+      "sentence_id": "wikitext2_train_0000010",
+      "tokens": [
+        "He",
+        "also",
+        "positively",
+        "noted",
+        "the",
+        "story",
+        "'",
+        "s",
+        "serious",
+        "tone",
+        "."
+      ],
+      "length": 11
+    },
+    {
+      "sentence_id": "wikitext2_train_0000011",
+      "tokens": [
+        "The",
+        "anime",
+        "was",
+        "first",
+        "announced",
+        "in",
+        "November",
+        "2010",
+        "."
+      ],
+      "length": 9
+    },
+    {
+      "sentence_id": "wikitext2_train_0000012",
+      "tokens": [
+        "Both",
+        "songs",
+        "'",
+        "lyrics",
+        "were",
+        "written",
+        "by",
+        "their",
+        "respective",
+        "artists",
+        "."
+      ],
+      "length": 11
+    }
+  ]
+}

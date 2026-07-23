@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "entries": [
+    {"word":"f","lemma":"f","pos":"XFUNC","candidates":[{"category":"S/NP","prior_cost":0,"source":"FromPosTemplate","locked":false}]},
+    {"word":"w","lemma":"w","pos":"XARG","candidates":[{"category":"NP","prior_cost":0,"source":"FromPosTemplate","locked":false}]}
+  ]
+}

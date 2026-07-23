@@ -1,0 +1,1357 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "word": "A",
+      "lemma": "a",
+      "pos": "DET",
+      "candidates": [
+        {
+          "category": "NP/N",
+          "prior_cost": 0,
+          "source": "FromSeedLexicon",
+          "locked": true
+        }
+      ]
+    },
+    {
+      "word": "Both",
+      "lemma": "both",
+      "pos": "DET",
+      "candidates": [
+        {
+          "category": "NP/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Development",
+      "lemma": "development",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Europan",
+      "lemma": "Europan",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "He",
+      "lemma": "he",
+      "pos": "PRON",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "I",
+      "lemma": "I",
+      "pos": "PRON",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "January",
+      "lemma": "January",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Nameless",
+      "lemma": "nameless",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "November",
+      "lemma": "November",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Production",
+      "lemma": "Production",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Second",
+      "lemma": "Second",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "The",
+      "lemma": "the",
+      "pos": "DET",
+      "candidates": [
+        {
+          "category": "NP/N",
+          "prior_cost": 0,
+          "source": "FromSeedLexicon",
+          "locked": true
+        }
+      ]
+    },
+    {
+      "word": "Troopers",
+      "lemma": "trooper",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "Up",
+      "lemma": "up",
+      "pos": "ADP",
+      "candidates": [
+        {
+          "category": "PP/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(N\\N)/NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "War",
+      "lemma": "War",
+      "pos": "PROPN",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "a",
+      "lemma": "a",
+      "pos": "DET",
+      "candidates": [
+        {
+          "category": "NP/N",
+          "prior_cost": 0,
+          "source": "FromSeedLexicon",
+          "locked": true
+        }
+      ]
+    },
+    {
+      "word": "also",
+      "lemma": "also",
+      "pos": "ADV",
+      "candidates": [
+        {
+          "category": "(S\\NP)\\(S\\NP)",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\S",
+          "prior_cost": 2,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "anime",
+      "lemma": "anime",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "announced",
+      "lemma": "announce",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "approximately",
+      "lemma": "approximately",
+      "pos": "ADV",
+      "candidates": [
+        {
+          "category": "(S\\NP)\\(S\\NP)",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\S",
+          "prior_cost": 2,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "artists",
+      "lemma": "artist",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "assigned",
+      "lemma": "assign",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "black",
+      "lemma": "black",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "by",
+      "lemma": "by",
+      "pos": "ADP",
+      "candidates": [
+        {
+          "category": "PP/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(N\\N)/NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "changing",
+      "lemma": "change",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "characters",
+      "lemma": "character",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "classes",
+      "lemma": "class",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "color",
+      "lemma": "color",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "decided",
+      "lemma": "decide",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "development",
+      "lemma": "development",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "during",
+      "lemma": "during",
+      "pos": "ADP",
+      "candidates": [
+        {
+          "category": "PP/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(N\\N)/NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "early",
+      "lemma": "early",
+      "pos": "ADV",
+      "candidates": [
+        {
+          "category": "(S\\NP)\\(S\\NP)",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\S",
+          "prior_cost": 2,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "first",
+      "lemma": "first",
+      "pos": "ADV",
+      "candidates": [
+        {
+          "category": "(S\\NP)\\(S\\NP)",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\S",
+          "prior_cost": 2,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "game",
+      "lemma": "game",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "handled",
+      "lemma": "handle",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "in",
+      "lemma": "in",
+      "pos": "ADP",
+      "candidates": [
+        {
+          "category": "PP/NP",
+          "prior_cost": 0,
+          "source": "FromSeedLexicon",
+          "locked": false
+        },
+        {
+          "category": "(N\\N)/NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "large",
+      "lemma": "large",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "lyrics",
+      "lemma": "lyric",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "main",
+      "lemma": "main",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "mission",
+      "lemma": "mission",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "newer",
+      "lemma": "new",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "noted",
+      "lemma": "note",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "of",
+      "lemma": "of",
+      "pos": "ADP",
+      "candidates": [
+        {
+          "category": "PP/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(N\\N)/NP",
+          "prior_cost": 1,
+          "source": "FromSeedLexicon",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "opening",
+      "lemma": "opening",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "place",
+      "lemma": "place",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "positively",
+      "lemma": "positively",
+      "pos": "ADV",
+      "candidates": [
+        {
+          "category": "(S\\NP)\\(S\\NP)",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\S",
+          "prior_cost": 2,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "produced",
+      "lemma": "produce",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "released",
+      "lemma": "release",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "respective",
+      "lemma": "respective",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "script",
+      "lemma": "script",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "serious",
+      "lemma": "serious",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "single",
+      "lemma": "single",
+      "pos": "ADJ",
+      "candidates": [
+        {
+          "category": "N/N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "songs",
+      "lemma": "song",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "story",
+      "lemma": "story",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "switch",
+      "lemma": "switch",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "systems",
+      "lemma": "system",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "takes",
+      "lemma": "take",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "team",
+      "lemma": "team",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "the",
+      "lemma": "the",
+      "pos": "DET",
+      "candidates": [
+        {
+          "category": "NP/N",
+          "prior_cost": 0,
+          "source": "FromSeedLexicon",
+          "locked": true
+        }
+      ]
+    },
+    {
+      "word": "their",
+      "lemma": "their",
+      "pos": "PRON",
+      "candidates": [
+        {
+          "category": "NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "to",
+      "lemma": "to",
+      "pos": "PART",
+      "candidates": [
+        {
+          "category": "PP/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(N\\N)/NP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "tone",
+      "lemma": "tone",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "took",
+      "lemma": "take",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "weapon",
+      "lemma": "weapon",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "work",
+      "lemma": "work",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "writers",
+      "lemma": "writer",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "written",
+      "lemma": "write",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "(S\\NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "S\\NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "(S\\NP)/PP",
+          "prior_cost": 3,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 4,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "word": "year",
+      "lemma": "year",
+      "pos": "NOUN",
+      "candidates": [
+        {
+          "category": "N",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        },
+        {
+          "category": "NP",
+          "prior_cost": 1,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    }
+  ]
+}

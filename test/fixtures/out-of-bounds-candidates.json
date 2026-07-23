@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "word": "gave",
+      "lemma": "give",
+      "pos": "VERB",
+      "candidates": [
+        {
+          "category": "((S\\NP)/NP)/NP",
+          "prior_cost": 0,
+          "source": "FromPosTemplate",
+          "locked": false
+        }
+      ]
+    }
+  ]
+}

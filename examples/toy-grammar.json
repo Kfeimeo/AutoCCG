@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "root": "S",
+  "lexicon": {
+    "John": ["NP"],
+    "likes": ["(S\\NP)/NP"],
+    "Mary": ["NP"]
+  }
+}
