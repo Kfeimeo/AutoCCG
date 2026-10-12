@@ -3,7 +3,7 @@
 module CandidateLexiconSpec (tests) where
 
 import CCG.CategoryStore (prettyCategory)
-import CCG.Atom (AtomTable)
+import CCG.Atom (AtomTable, lookupAtom)
 import CCG.CategoryStore (CategoryStore)
 import Corpus.Types (Sentence (..))
 import qualified Data.Map.Strict as Map
@@ -111,6 +111,73 @@ tests = testGroup "candidate lexicon"
           batch = repairSentenceWithCandidates 1 config emptyCandidateLexicon
             (sentence ["mystery"] [""]) emptyGrammar
       repairCandidatesFromUnknownFallback (repairBatchStats batch) @?= 5
+  , testCase "configured atoms are available to POS templates" $ do
+      let config = enabledConfig
+            { atoms = AtomConfig ["S", "NP", "N", "PP", "AP"] 5
+            , posToCategories = Map.singleton "ADJ" [CandidateTemplateConfig "AP" 0]
+            }
+      case buildCandidateLexiconFromConfig config [sentence ["happy"] ["ADJ"]]
+        (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+        Left message -> assertFailure (show message)
+        Right (atomTable, _, _) ->
+          assertBool "configured AP atom missing" (lookupAtom "AP" atomTable /= Nothing)
+  , testCase "POS templates reject undeclared atoms" $ do
+      let config = enabledConfig
+            { atoms = AtomConfig ["S", "NP", "N", "PP"] 8
+            , posToCategories = Map.singleton "ADJ" [CandidateTemplateConfig "AP" 0]
+            }
+      case buildCandidateLexiconFromConfig config [sentence ["happy"] ["ADJ"]]
+        (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+        Left message ->
+          assertBool "missing undeclared-atom diagnostic"
+            ("introduces an unconfigured atom" `Text.isInfixOf` message)
+        Right _ -> assertFailure "accepted an undeclared AP atom"
+  , testCase "configured atom inventory respects max_count" $ do
+      let config = enabledConfig
+            { atoms = AtomConfig ["S", "NP", "N", "PP", "AP"] 4 }
+      case configuredAtomTable config (grammarAtoms emptyGrammar) of
+        Left message ->
+          assertBool "missing max_count diagnostic" ("exceeds atoms.max_count" `Text.isInfixOf` message)
+        Right _ -> assertFailure "accepted too many configured atoms"
+  , testCase "default YAML declares every atom used by POS templates" $ do
+      loaded <- loadConfig "configs/default.yaml"
+      case loaded of
+        Left message -> assertFailure message
+        Right config -> do
+          let tags = Map.keys (posToCategories config)
+              corpus = [sentence [tag] [tag] | tag <- tags]
+          case buildCandidateLexiconFromConfig config corpus
+            (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+            Left message -> assertFailure (show message)
+            Right (atomTable, _, _) ->
+              assertBool "default YAML did not configure AP" (lookupAtom "AP" atomTable /= Nothing)
+  , testCase "default YAML supplies bounded punctuation and numeric candidates" $ do
+      loaded <- loadConfig "configs/default.yaml"
+      case loaded of
+        Left message -> assertFailure message
+        Right config ->
+          case buildCandidateLexiconFromConfig config
+            [sentence ["42", ",", "!", "?"] ["", "PUNCT", "PUNCT", "PUNCT"]]
+            (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+            Left message -> assertFailure (show message)
+            Right (atomTable, store, candidates) -> do
+              render atomTable store (candidateCategoriesForWord "42" candidates) @?= ["N/N", "NP"]
+              render atomTable store (candidateCategoriesForWord "," candidates) @?=
+                ["S\\S", "(S\\S)/S", "NP\\NP", "N\\N"]
+              render atomTable store (candidateCategoriesForWord "!" candidates) @?= ["S\\S"]
+              render atomTable store (candidateCategoriesForWord "?" candidates) @?= ["S\\S"]
+  , testCase "untruncated YAML raises every operational search capacity" $ do
+      loaded <- loadConfig "configs/untruncated.yaml"
+      case loaded of
+        Left message -> assertFailure message
+        Right config -> do
+          beamWidth (parser config) @?= 2147483647
+          maxStatesPerPosition (parser config) @?= 2147483647
+          grammarBeamWidth (grammar config) @?= 2147483647
+          maxRepairsPerFailure (grammar config) @?= 2147483647
+          maxCandidatesPerWord (candidateConstraints config) @?= 2147483647
+          maxCandidatesGenerated (repair config) @?= 2147483647
+          maxCandidatesValidated (repair config) @?= 2147483647
   ]
 
 enabledConfig :: Config

@@ -15,7 +15,11 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import Evaluation.Coverage (CoverageResult (..), sentenceCoverageWithJobs)
+import Evaluation.Coverage
+  ( CoverageResult (..)
+  , SentenceCoverage (..)
+  , sentenceCoverageDetailsWithJobs
+  )
 import Evaluation.Export (writeCoverageResult)
 import GHC.Conc (setNumCapabilities)
 import Grammar.Induction
@@ -96,20 +100,30 @@ runCommand selectedCommand = case selectedCommand of
     jobs <- configureJobs requestedJobs
     corpus <- requireCorpus corpusPath
     grammar <- requireGrammar grammarPath
-    let coverage = sentenceCoverageWithJobs jobs defaultConfig grammar corpus
-        covered = length (filter id coverage)
+    let coverage = sentenceCoverageDetailsWithJobs jobs defaultConfig grammar corpus
+        covered = length (filter coverageCovered coverage)
         total = length coverage
         rate = if total == 0 then 0 else fromIntegral covered / fromIntegral total
     createDirectoryIfMissing True output
     writeCoverageResult (output </> "evaluation.json") (CoverageResult total covered rate)
-    writeSentenceResults (output </> "sentence_results.jsonl") corpus coverage
+    writeSentenceResults (output </> "sentence_results.jsonl") grammar coverage
     writeFile (output </> "category_inventory.csv") "word,category\n"
     writeFile (output </> "ambiguity.csv") "sentence_id,parse_count\n"
+    traverse_ (Text.putStrLn . renderCoverageLine grammar) coverage
+    Text.putStrLn
+      ("coverage=" <> Text.pack (show covered) <> "/" <> Text.pack (show total)
+        <> " (" <> Text.pack (showFFloat1 (rate * 100)) <> "%)")
   Parse grammarPath sentence -> do
     grammar <- requireGrammar grammarPath
-    case parseSentence defaultConfig (grammarCategories grammar) (grammarLexicon grammar) (raisingTemplates grammar) (rootCategory grammar) (Text.words sentence) of
+    let sentenceTokens = Text.words sentence
+    case parseSentence defaultConfig (grammarCategories grammar) (grammarLexicon grammar) (raisingTemplates grammar) (rootCategory grammar) sentenceTokens of
       Parsed success -> Lazy.putStr (encode (derivationSummary success) <> "\n")
-      Failed failure -> die ("parse failed at token position " <> show (farthestPosition failure))
+      Failed failure -> do
+        let diagnosticSentence = Sentence "<command-line>" sentenceTokens sentenceTokens [] [] Map.empty
+            diagnostic = case sentenceCoverageDetailsWithJobs 1 defaultConfig grammar [diagnosticSentence] of
+              result : _ -> renderCoverageLine grammar result
+              [] -> "parse failed at token position " <> Text.pack (show (farthestPosition failure))
+        die (Text.unpack diagnostic)
   InspectLexicon grammarPath word -> do
     grammar <- requireGrammar grammarPath
     let categoryIds = categoriesForWord word (grammarLexicon grammar)
@@ -129,23 +143,29 @@ requireGrammar :: FilePath -> IO Grammar
 requireGrammar path = loadGrammar path >>= either (die . Text.unpack) pure
 
 prepareCandidateLayer :: Config -> [Sentence] -> Maybe FilePath -> IO (Grammar, CandidateLexicon)
-prepareCandidateLayer config corpus selectedPath
-  | not (candidateConstraintsEnabled (candidateConstraints config)) = pure (emptyGrammar, emptyCandidateLexicon)
-  | otherwise = case selectedPath of
+prepareCandidateLayer config corpus selectedPath = do
+  configuredAtoms <- either (die . Text.unpack) pure
+    (configuredAtomTable config (grammarAtoms emptyGrammar))
+  let configuredGrammar = emptyGrammar { grammarAtoms = configuredAtoms }
+  if not (candidateConstraintsEnabled (candidateConstraints config))
+    then pure (configuredGrammar, emptyCandidateLexicon)
+    else case selectedPath of
       Just path -> loadCandidates config path
-      Nothing -> case buildCandidateLexiconFromConfig config corpus (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+      Nothing -> case buildCandidateLexiconFromConfig config corpus configuredAtoms (grammarCategories configuredGrammar) of
         Left message -> die (Text.unpack message)
         Right (atoms, store, candidates) -> pure
-          (emptyGrammar { grammarAtoms = atoms, grammarCategories = store }, candidates)
+          (configuredGrammar { grammarAtoms = atoms, grammarCategories = store }, candidates)
 
 loadCandidates :: Config -> FilePath -> IO (Grammar, CandidateLexicon)
 loadCandidates config path = do
+  configuredAtoms <- either (die . Text.unpack) pure
+    (configuredAtomTable config (grammarAtoms emptyGrammar))
   loaded <- loadCandidateLexicon
     (categories config)
     (rejectCandidatesOutsideCategoryBounds (candidateConstraints config))
     (maxCandidatesPerWord (candidateConstraints config))
     path
-    (grammarAtoms emptyGrammar)
+    configuredAtoms
     (grammarCategories emptyGrammar)
   case loaded of
     Left message -> die (Text.unpack message)
@@ -178,7 +198,20 @@ renderProgress :: ProgressState -> Int -> Int -> TrainingMetric -> IO ()
 renderProgress state completed total metric = do
   if metricCovered metric
     then modifyIORef' (progressCovered state) (+ 1)
-    else pure ()
+    else hPutStrLn stderr
+      ("\nunresolved sentence=" <> Text.unpack (metricSentenceId metric)
+        <> " categorized_tokens=" <> renderMetricRatio
+          (metricCategorizedTokenCount metric) (metricSentenceLength metric)
+          (metricCategorizedTokenRate metric)
+        <> " categorized_word_types=" <> renderMetricRatio
+          (metricCategorizedWordTypeCount metric) (metricWordTypeCount metric)
+          (metricCategorizedWordTypeRate metric)
+        <> " category_assignments=" <> show (metricCategoryAssignmentCount metric)
+        <> maybe "" ((" farthest_position=" <>) . show) (metricFarthestPosition metric)
+        <> if null (metricUncategorizedWords metric)
+          then ""
+          else " uncategorized_words=["
+            <> Text.unpack (Text.intercalate ", " (metricUncategorizedWords metric)) <> "]")
   covered <- readIORef (progressCovered state)
   now <- getCurrentTime
   let unresolved = completed - covered
@@ -197,6 +230,10 @@ renderProgress state completed total metric = do
         <> " " <> showFFloat1 rate <> " sent/s"
   hPutStr stderr line
   hFlush stderr
+
+renderMetricRatio :: Int -> Int -> Double -> String
+renderMetricRatio count total rate =
+  show count <> "/" <> show total <> " (" <> showFFloat1 (rate * 100) <> "%)"
 
 showFFloat1 :: Double -> String
 showFFloat1 number =
@@ -233,6 +270,14 @@ writeMetrics path metrics = Lazy.writeFile path (mconcat (map ((<> "\n") . encod
       , "repair_candidates_filtered_by_wordnet" .= metricRepairCandidatesFilteredByWordNet metric
       , "repair_candidates_validated" .= metricRepairCandidatesValidated metric
       , "repair_candidates_accepted" .= metricRepairCandidatesAccepted metric
+      , "categorized_token_count" .= metricCategorizedTokenCount metric
+      , "categorized_token_rate" .= metricCategorizedTokenRate metric
+      , "word_type_count" .= metricWordTypeCount metric
+      , "categorized_word_type_count" .= metricCategorizedWordTypeCount metric
+      , "categorized_word_type_rate" .= metricCategorizedWordTypeRate metric
+      , "category_assignment_count" .= metricCategoryAssignmentCount metric
+      , "uncategorized_words" .= metricUncategorizedWords metric
+      , "farthest_position" .= metricFarthestPosition metric
       ]
 
 writeCandidateStats :: FilePath -> TrainingResult -> IO ()
@@ -284,8 +329,60 @@ writeLearnedCategorySources path grammar candidates = Lazy.writeFile path (mconc
 writeSentences :: FilePath -> [Sentence] -> IO ()
 writeSentences path sentences = Lazy.writeFile path (mconcat [encode sentence <> "\n" | sentence <- sentences])
 
-writeSentenceResults :: FilePath -> [Sentence] -> [Bool] -> IO ()
-writeSentenceResults path sentences coverage = Lazy.writeFile path (mconcat (zipWith resultLine sentences coverage))
+writeSentenceResults :: FilePath -> Grammar -> [SentenceCoverage] -> IO ()
+writeSentenceResults path grammar coverage = Lazy.writeFile path (mconcat (map resultLine coverage))
   where
-    resultLine sentence covered =
-      encode (object ["sentence_id" .= sentenceId sentence, "covered" .= covered]) <> "\n"
+    resultLine result =
+      encode (object
+        [ "sentence_id" .= coverageSentenceId result
+        , "covered" .= coverageCovered result
+        , "token_count" .= coverageTokenCount result
+        , "categorized_token_count" .= coverageCategorizedTokenCount result
+        , "categorized_token_rate" .= coverageCategorizedTokenRate result
+        , "word_type_count" .= coverageWordTypeCount result
+        , "categorized_word_type_count" .= coverageCategorizedWordTypeCount result
+        , "categorized_word_type_rate" .= coverageCategorizedWordTypeRate result
+        , "category_assignment_count" .= coverageCategoryAssignmentCount result
+        , "uncategorized_words" .= coverageUncategorizedWords result
+        , "farthest_position" .= coverageFarthestPosition result
+        , "frontier_stacks" .= map (map (prettyCategoryOrId grammar)) (coverageFrontierStacks result)
+        , "successful_level" .= fmap show (coverageSuccessfulLevel result)
+        ]) <> "\n"
+
+renderCoverageLine :: Grammar -> SentenceCoverage -> Text
+renderCoverageLine grammar result =
+  "sentence=" <> coverageSentenceId result
+    <> " covered=" <> boolText (coverageCovered result)
+    <> " categorized_tokens=" <> countRatio
+      (coverageCategorizedTokenCount result) (coverageTokenCount result)
+      (coverageCategorizedTokenRate result)
+    <> " categorized_word_types=" <> countRatio
+      (coverageCategorizedWordTypeCount result) (coverageWordTypeCount result)
+      (coverageCategorizedWordTypeRate result)
+    <> " category_assignments=" <> Text.pack (show (coverageCategoryAssignmentCount result))
+    <> maybe "" (\position -> " farthest_position=" <> Text.pack (show position))
+      (coverageFarthestPosition result)
+    <> if null (coverageUncategorizedWords result)
+      then ""
+      else " uncategorized_words=[" <> Text.intercalate ", " (coverageUncategorizedWords result) <> "]"
+    <> if null (coverageFrontierStacks result)
+      then ""
+      else " frontier_stacks=" <> renderStacks grammar (coverageFrontierStacks result)
+  where
+    boolText True = "true"
+    boolText False = "false"
+    countRatio count total rate =
+      Text.pack (show count) <> "/" <> Text.pack (show total)
+        <> " (" <> Text.pack (showFFloat1 (rate * 100)) <> "%)"
+
+renderStacks :: Grammar -> [[CCG.Category.CategoryId]] -> Text
+renderStacks grammar stacks =
+  "[" <> Text.intercalate ", "
+    ["[" <> Text.intercalate ", " (map (prettyCategoryOrId grammar) stack) <> "]" | stack <- stacks]
+    <> "]"
+
+prettyCategoryOrId :: Grammar -> CCG.Category.CategoryId -> Text
+prettyCategoryOrId grammar categoryId =
+  either (const (Text.pack (show categoryId))) id
+    (CCG.CategoryStore.prettyCategory
+      (grammarAtoms grammar) (grammarCategories grammar) categoryId)

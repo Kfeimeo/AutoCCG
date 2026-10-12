@@ -2,7 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Parser.Config
-  ( CategoryBounds (..)
+  ( AtomConfig (..)
+  , CategoryBounds (..)
   , ParserConfig (..)
   , GrammarConfig (..)
   , RuleConfig (..)
@@ -23,6 +24,10 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
 import GHC.Generics (Generic)
+
+data AtomConfig = AtomConfig
+  { predefinedAtoms :: ![Text], maxAtomCount :: !Int
+  } deriving (Eq, Show, Generic)
 
 data CategoryBounds = CategoryBounds
   { maxDepth :: !Int, maxSlashes :: !Int, maxArity :: !Int
@@ -85,7 +90,8 @@ data RepairConfig = RepairConfig
   } deriving (Eq, Show, Generic)
 
 data Config = Config
-  { categories :: !CategoryBounds, parser :: !ParserConfig, grammar :: !GrammarConfig
+  { atoms :: !AtomConfig
+  , categories :: !CategoryBounds, parser :: !ParserConfig, grammar :: !GrammarConfig
   , rules :: !RuleConfig, training :: !TrainingConfig
   , candidateConstraints :: !CandidateConstraintsConfig
   , posToCategories :: !(Map Text [CandidateTemplateConfig])
@@ -96,6 +102,7 @@ data Config = Config
 
 defaultConfig :: Config
 defaultConfig = Config
+  (AtomConfig ["S", "NP", "N", "PP"] 8)
   (CategoryBounds 5 4 3)
   (ParserConfig 128 12 2048 8 10000)
   (GrammarConfig 16 32 2)
@@ -107,6 +114,10 @@ defaultConfig = Config
   (InitializationConfig True True False 0)
   (RepairConfig True 100 10 True 5)
 
+instance FromJSON AtomConfig where
+  parseJSON = withObject "atoms" $ \o -> AtomConfig
+    <$> o .:? "predefined" .!= ["S", "NP", "N", "PP"]
+    <*> o .:? "max_count" .!= 8
 instance FromJSON CategoryBounds where
   parseJSON = withObject "categories" $ \o -> CategoryBounds
     <$> o .:? "max_depth" .!= 5 <*> o .:? "max_slashes" .!= 4 <*> o .:? "max_arity" .!= 3
@@ -154,7 +165,8 @@ instance FromJSON RepairConfig where
     <*> o .:? "unknown_fallback_max_candidates" .!= 5
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> Config
-    <$> o .:? "categories" .!= categories defaultConfig <*> o .:? "parser" .!= parser defaultConfig
+    <$> o .:? "atoms" .!= atoms defaultConfig
+    <*> o .:? "categories" .!= categories defaultConfig <*> o .:? "parser" .!= parser defaultConfig
     <*> o .:? "grammar" .!= grammar defaultConfig <*> o .:? "rules" .!= rules defaultConfig
     <*> o .:? "training" .!= training defaultConfig
     <*> o .:? "candidate_constraints" .!= candidateConstraints defaultConfig

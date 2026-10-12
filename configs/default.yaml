@@ -1,18 +1,22 @@
+atoms:
+  predefined: ["S", "NP", "N", "PP", "AP"]
+  max_count: 8
+
 categories:
   max_depth: 5
-  max_slashes: 4
-  max_arity: 3
+  max_slashes: 5
+  max_arity: 5
 
 parser:
-  beam_width: 128
-  max_stack_depth: 12
-  max_states_per_position: 2048
-  max_reductions_per_shift: 8
-  parse_count_cap: 10000
+  beam_width: 256
+  max_stack_depth: 20
+  max_states_per_position: 4096
+  max_reductions_per_shift: 12
+  parse_count_cap: 20000
 
 grammar:
-  beam_width: 16
-  max_repairs_per_failure: 32
+  beam_width: 24
+  max_repairs_per_failure: 64
   max_joint_repair_width: 2
 
 rules:
@@ -20,8 +24,8 @@ rules:
   allow_backward_application: true
   allow_forward_composition: true
   allow_backward_composition: true
-  allow_crossed_composition: false
-  allow_generalized_composition: false
+  allow_crossed_composition: true
+  allow_generalized_composition: true
 
 candidate_constraints:
   enabled: true
@@ -30,46 +34,110 @@ candidate_constraints:
   use_pos_templates: true
   use_seed_lexicon: true
   unknown_policy: small_default
-  max_candidates_per_word: 8
+  max_candidates_per_word: 16
   reject_candidates_outside_category_bounds: true
 
 initialization:
   use_locked_seed_entries: true
   activate_single_candidate_words: true
-  activate_best_candidate_per_word: false
-  max_initial_prior_cost: 0
+  activate_best_candidate_per_word: true
+  max_initial_prior_cost: 1
 
 repair:
   use_candidate_lexicon_first: true
-  max_candidates_generated: 100
-  max_candidates_validated: 10
+  max_candidates_generated: 300
+  max_candidates_validated: 80
   allow_unknown_fallback: true
-  unknown_fallback_max_candidates: 5
+  unknown_fallback_max_candidates: 8
 
 pos_to_categories:
   PROPN:
     - {category: "NP", prior_cost: 0}
+
   PRON:
     - {category: "NP", prior_cost: 0}
+
   NOUN:
     - {category: "N", prior_cost: 0}
     - {category: "NP", prior_cost: 1}
+    - {category: "N/N", prior_cost: 2}
+
   DET:
     - {category: "NP/N", prior_cost: 0}
+
   ADJ:
     - {category: "N/N", prior_cost: 0}
-    - {category: "S\\NP", prior_cost: 3}
+    - {category: "AP", prior_cost: 1}
+
   VERB:
-    - {category: "S\\NP", prior_cost: 1}
+    - {category: "S\\NP", prior_cost: 0}
     - {category: "(S\\NP)/NP", prior_cost: 0}
-    - {category: "((S\\NP)/NP)/NP", prior_cost: 4}
-    - {category: "(S\\NP)/PP", prior_cost: 3}
+    - {category: "((S\\NP)/NP)/NP", prior_cost: 3}
+    - {category: "(S\\NP)/PP", prior_cost: 2}
+    - {category: "(S\\NP)/S", prior_cost: 3}
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 3}
+
   ADV:
     - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+    - {category: "S/S", prior_cost: 1}
     - {category: "S\\S", prior_cost: 2}
+    - {category: "(N/N)/(N/N)", prior_cost: 2}
+    - {category: "AP/AP", prior_cost: 2}
+
   ADP:
-    - {category: "PP/NP", prior_cost: 0}
-    - {category: "(N\\N)/NP", prior_cost: 3}
+    - {category: "PP/NP", prior_cost: 1}
+    - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 0}
+    - {category: "((S\\NP)/(S\\NP))/NP", prior_cost: 2}
+    - {category: "(N\\N)/NP", prior_cost: 1}
+
+  AUX:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+    - {category: "(S\\NP)/AP", prior_cost: 1}
+    - {category: "(S\\NP)/NP", prior_cost: 1}
+
+  CCONJ:
+    - {category: "(N\\N)/N", prior_cost: 0}
+    - {category: "(NP\\NP)/NP", prior_cost: 0}
+    - {category: "(S\\S)/S", prior_cost: 1}
+    - {category: "((S\\NP)\\(S\\NP))/(S\\NP)", prior_cost: 1}
+
+  SCONJ:
+    - {category: "S/S", prior_cost: 1}
+    - {category: "(S/S)/S", prior_cost: 2}
+    - {category: "(S\\S)/S", prior_cost: 2}
+
+  NUM:
+    - {category: "N/N", prior_cost: 0}
+    - {category: "NP", prior_cost: 1}
+
+  # CCGbank keeps punctuation as punctuation leaves and combines it with
+  # absorption/type-change rules.  Until those rules exist here, these are
+  # bounded lexicalized approximations for Application parsing.
+  PUNCT:
+    - {category: "S\\S", prior_cost: 0}
+    - {category: "(S\\S)/S", prior_cost: 2}
+    - {category: "NP\\NP", prior_cost: 2}
+    - {category: "N\\N", prior_cost: 3}
+  PUNCT_COMMA:
+    - {category: "S\\S", prior_cost: 0}
+    - {category: "(S\\S)/S", prior_cost: 2}
+    - {category: "NP\\NP", prior_cost: 2}
+    - {category: "N\\N", prior_cost: 3}
+  PUNCT_FINAL:
+    - {category: "S\\S", prior_cost: 0}
+
+  # Penn Treebank / CCGbank POS aliases.
+  CD:
+    - {category: "N/N", prior_cost: 0}
+    - {category: "NP", prior_cost: 1}
+  ",":
+    - {category: "S\\S", prior_cost: 0}
+    - {category: "(S\\S)/S", prior_cost: 2}
+    - {category: "NP\\NP", prior_cost: 2}
+    - {category: "N\\N", prior_cost: 3}
+  ".":
+    - {category: "S\\S", prior_cost: 0}
 
 seed_lexicon:
   the:
@@ -87,6 +155,36 @@ seed_lexicon:
     - {category: "PP/NP", prior_cost: 2, lock: false}
   not:
     - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  is:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  was:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  were:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  are:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  be:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  ",":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+    - {category: "(S\\S)/S", prior_cost: 2, lock: false}
+    - {category: "NP\\NP", prior_cost: 2, lock: false}
+    - {category: "N\\N", prior_cost: 3, lock: false}
+  "!":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+  "?":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+  "，":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+    - {category: "(S\\S)/S", prior_cost: 2, lock: false}
+  "！":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+  "？":
+    - {category: "S\\S", prior_cost: 0, lock: true}
 
 training:
   seed: 42

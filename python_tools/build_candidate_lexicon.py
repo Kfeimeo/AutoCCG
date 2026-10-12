@@ -15,6 +15,28 @@ SOURCE_ORDER = {
     "FromUnknownFallback": 3,
 }
 
+COMMA_TOKENS = {",", "，"}
+FINAL_PUNCTUATION_TOKENS = {".", "!", "?", "。", "！", "？"}
+
+
+def inferred_pos(word: str) -> str:
+    """Return a small, deterministic shape-based POS fallback.
+
+    This is deliberately limited to closed-form punctuation and numeric shapes;
+    it is not a replacement for token-level POS tagging.
+    """
+    if word in COMMA_TOKENS:
+        return "PUNCT_COMMA"
+    if word in FINAL_PUNCTUATION_TOKENS:
+        return "PUNCT_FINAL"
+    numeric_body = word[1:] if word.startswith(("+", "-")) else word
+    numeric_body = numeric_body[:-1] if numeric_body.endswith("%") else numeric_body
+    if numeric_body[:1].isdigit() and numeric_body[-1:].isdigit() and all(
+        character.isdigit() or character in ".," for character in numeric_body
+    ):
+        return "NUM"
+    return ""
+
 
 def load_yaml(path: Path) -> dict[str, Any]:
     try:
@@ -66,9 +88,17 @@ def build_candidates(corpus: Path, wordnet_path: Path | None, config: dict[str, 
                 raise ValueError(f"{corpus}:{line_number}: tokens/lemmas/POS alignment mismatch")
             for index, (word, lemma) in enumerate(zip(tokens, lemmas, strict=True)):
                 explicit_pos = pos_values[index] if pos_values else ""
-                pos_sources = [(explicit_pos, "FromPosTemplate")] if explicit_pos else [
-                    (value, "FromWordNetPos") for value in inventory.get(lemma.lower(), [])
-                ]
+                if explicit_pos:
+                    # UPOS PUNCT is intentionally refined by the token itself:
+                    # final punctuation must not inherit comma-only candidates.
+                    template_pos = inferred_pos(word) if explicit_pos == "PUNCT" else explicit_pos
+                    pos_sources = [(template_pos or explicit_pos, "FromPosTemplate")]
+                elif shape_pos := inferred_pos(word):
+                    pos_sources = [(shape_pos, "FromUnknownFallback")]
+                else:
+                    pos_sources = [
+                        (value, "FromWordNetPos") for value in inventory.get(lemma.lower(), [])
+                    ]
                 for pos, source_name in pos_sources:
                     for template in templates.get(pos, []):
                         add_candidate(entries, word, lemma, explicit_pos or pos, {**template, "source": source_name})

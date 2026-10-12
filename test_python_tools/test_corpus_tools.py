@@ -97,6 +97,48 @@ class CorpusToolsTest(unittest.TestCase):
             self.assertEqual([item["category"] for item in candidates], ["N", "S\\NP"])
             self.assertTrue(all(item["source"] == "FromWordNetPos" for item in candidates))
 
+    def test_candidate_builder_infers_punctuation_and_numeric_shapes_without_pos(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            corpus = root / "corpus.jsonl"
+            corpus.write_text(json.dumps({
+                "sentence_id": "s", "tokens": ["42", "?"],
+            }) + "\n", encoding="utf-8")
+            config = {
+                "candidate_constraints": {"max_candidates_per_word": 8},
+                "pos_to_categories": {
+                    "NUM": [{"category": "N/N", "prior_cost": 0}, {"category": "NP", "prior_cost": 1}],
+                    "PUNCT_FINAL": [{"category": "S\\S", "prior_cost": 0}],
+                },
+            }
+            document = candidate_builder.build_candidates(corpus, None, config)
+            entries = {entry["word"]: entry for entry in document["entries"]}
+            self.assertEqual([item["category"] for item in entries["42"]["candidates"]], ["N/N", "NP"])
+            self.assertEqual([item["category"] for item in entries["?"]["candidates"]], ["S\\S"])
+            self.assertTrue(all(
+                item["source"] == "FromUnknownFallback"
+                for entry in entries.values() for item in entry["candidates"]
+            ))
+
+    def test_upos_punctuation_is_refined_by_symbol(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            corpus = root / "corpus.jsonl"
+            corpus.write_text(json.dumps({
+                "sentence_id": "s", "tokens": [",", "!"], "pos": ["PUNCT", "PUNCT"],
+            }) + "\n", encoding="utf-8")
+            config = {
+                "candidate_constraints": {"max_candidates_per_word": 8},
+                "pos_to_categories": {
+                    "PUNCT_COMMA": [{"category": "(S\\S)/S", "prior_cost": 0}],
+                    "PUNCT_FINAL": [{"category": "S\\S", "prior_cost": 0}],
+                },
+            }
+            document = candidate_builder.build_candidates(corpus, None, config)
+            entries = {entry["word"]: entry for entry in document["entries"]}
+            self.assertEqual(entries[","]["candidates"][0]["category"], "(S\\S)/S")
+            self.assertEqual(entries["!"]["candidates"][0]["category"], "S\\S")
+
     def test_pos_enrichment_preserves_alignment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

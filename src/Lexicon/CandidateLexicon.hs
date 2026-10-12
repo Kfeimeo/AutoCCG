@@ -12,16 +12,18 @@ module Lexicon.CandidateLexicon
   , candidateLexiconStats
   , loadCandidateLexicon
   , buildCandidateLexiconFromConfig
+  , configuredAtomTable
   , categoryWithinBounds
   ) where
 
-import CCG.Atom (AtomTable, atomCount)
+import CCG.Atom (AtomTable, addConfiguredAtoms, atomCount)
 import CCG.Category (CategoryId, categoryArity, categoryDepth, categorySlashCount)
 import CCG.CategoryStore (CategoryStore, lookupCategory, parseCategory)
 import Corpus.Types (Sentence (..))
 import Control.Monad (foldM)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Char (isDigit)
 import Data.List (partition, sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -29,6 +31,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import Parser.Config
+import qualified Parser.Config as Config
 
 data CandidateSource
   = FromSeedLexicon
@@ -149,12 +152,13 @@ buildCandidateLexiconFromConfig
   -> CategoryStore
   -> Either Text (AtomTable, CategoryStore, CandidateLexicon)
 buildCandidateLexiconFromConfig config corpus atoms store = do
+  configuredAtoms <- configuredAtomTable config atoms
   if maxCandidatesPerWord constraints < 1
     then Left "max_candidates_per_word must be at least 1"
     else Right ()
   seeded <- if useSeedLexicon constraints
-    then foldM addSeed (atoms, store, emptyCandidateLexicon) (Map.toAscList (seedLexicon config))
-    else Right (atoms, store, emptyCandidateLexicon)
+    then foldM addSeed (configuredAtoms, store, emptyCandidateLexicon) (Map.toAscList (seedLexicon config))
+    else Right (configuredAtoms, store, emptyCandidateLexicon)
   generated <- if usePosTemplates constraints then foldM addSentence seeded corpus else Right seeded
   let (atoms', store', lexicon) = generated
   pure (atoms', store', limitCandidates (maxCandidatesPerWord constraints) lexicon)
@@ -177,9 +181,13 @@ buildCandidateLexiconFromConfig config corpus atoms store = do
       where
         paddedPos = posTags sentence ++ repeat ""
     addToken state (word, pos) = do
-      withPos <- case Map.lookup pos (posToCategories config) of
+      let (templatePos, source)
+            | pos == "PUNCT" && not (Text.null (inferShapePos word)) = (inferShapePos word, FromPosTemplate)
+            | not (Text.null pos) = (pos, FromPosTemplate)
+            | otherwise = (inferShapePos word, FromUnknownFallback)
+      withPos <- case Map.lookup templatePos (posToCategories config) of
         Nothing -> Right state
-        Just templates -> addConfigured word FromPosTemplate state templates
+        Just templates -> addConfigured word source state templates
       if useSeedLexicon constraints
         then case Map.lookup (Text.toLower word) (seedLexicon config) of
           Nothing -> Right withPos
@@ -195,6 +203,35 @@ buildCandidateLexiconFromConfig config corpus atoms store = do
           else if not (categoryWithinBounds (categories config) store1 categoryId)
             then Left ("configured category exceeds bounds for " <> word <> ": " <> templateCategory template)
             else Right (atoms1, store1, insertCandidate word (CandidateCategory categoryId (templatePriorCost template) source False) lexicon)
+
+-- | A deliberately small fallback for closed-form token shapes.  It supplies
+-- evidence only when the corpus has no token POS, and never enumerates the
+-- category universe.
+inferShapePos :: Text -> Text
+inferShapePos word
+  | word `elem` [",", "，"] = "PUNCT_COMMA"
+  | word `elem` [".", "!", "?", "。", "！", "？"] = "PUNCT_FINAL"
+  | isNumericToken word = "NUM"
+  | otherwise = ""
+
+isNumericToken :: Text -> Bool
+isNumericToken word =
+  let unsigned = case Text.uncons word of
+        Just (sign, rest) | sign `elem` ['+', '-'] -> rest
+        _ -> word
+      body = case Text.unsnoc unsigned of
+        Just (rest, '%') -> rest
+        _ -> unsigned
+      boundaryDigits = case (Text.uncons body, Text.unsnoc body) of
+        (Just (first, _), Just (_, lastCharacter)) -> isDigit first && isDigit lastCharacter
+        _ -> False
+   in boundaryDigits && Text.all (\character -> isDigit character || character `elem` ['.', ',']) body
+
+configuredAtomTable :: Config -> AtomTable -> Either Text AtomTable
+configuredAtomTable config =
+  addConfiguredAtoms
+    (predefinedAtoms (Config.atoms config))
+    (maxAtomCount (Config.atoms config))
 
 insertCandidate :: Text -> CandidateCategory -> CandidateLexicon -> CandidateLexicon
 insertCandidate word candidate (CandidateLexicon entries) = CandidateLexicon (Map.alter update word entries)

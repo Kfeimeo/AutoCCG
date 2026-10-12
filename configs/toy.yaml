@@ -1,3 +1,4 @@
+atoms: {predefined: ["S", "NP", "N", "PP"], max_count: 8}
 categories: {max_depth: 5, max_slashes: 4, max_arity: 3}
 parser: {beam_width: 64, max_stack_depth: 12, max_states_per_position: 1024, max_reductions_per_shift: 8, parse_count_cap: 10000}
 grammar: {beam_width: 8, max_repairs_per_failure: 16, max_joint_repair_width: 2}

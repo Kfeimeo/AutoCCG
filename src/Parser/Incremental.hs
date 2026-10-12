@@ -6,8 +6,8 @@ module Parser.Incremental
   , rightReachableCategories
   ) where
 
-import CCG.Category (CategoryId)
-import CCG.CategoryStore (CategoryStore)
+import CCG.Category (CategoryId, categoryArity, categoryDepth, categorySlashCount)
+import CCG.CategoryStore (CategoryStore, lookupCategory)
 import CCG.Combinator (Combinator (..), applicationResults, compositionResults)
 import CCG.Derivation
   ( DerivationArena, DerivationNode (..), DerivationRef, addDerivation, emptyArena )
@@ -47,13 +47,15 @@ parseSentence config store lexicon templates root tokens = tryLevels [Applicatio
 
 runParser :: Config -> ParseLevel -> CategoryStore -> Lexicon -> [TypeRaisingTemplate] -> CategoryId -> [Text] -> ParseOutcome
 runParser config level initialStore lexicon templates root tokens =
-  let (states, arena, finalStore') = foldl' shiftPosition ([initialState level], emptyArena, preparedStore) (zip [0 ..] tokens)
+  let initialStates = [initialState level]
+      (states, arena, finalStore', failureFrontier) =
+        foldl' shiftPosition (initialStates, emptyArena, preparedStore, initialStates) (zip [0 ..] tokens)
       complete = [state | state <- states, map itemCategory (categoryStack state) == [root]]
    in case sortBy (comparing parseCost <> comparing semanticKey) complete of
         winner : _ -> case categoryStack winner of
           item : _ -> Parsed (ParseSuccess level (itemDerivation item) (parseCost winner) (boundedParseCount winner) arena finalStore')
-          [] -> Failed (makeFailure tokens states)
-        [] -> Failed (makeFailure tokens states)
+          [] -> Failed (makeFailure tokens failureFrontier)
+        [] -> Failed (makeFailure tokens failureFrontier)
   where
     parserConfig = parser config
     ruleConfig = rules config
@@ -62,10 +64,14 @@ runParser config level initialStore lexicon templates root tokens =
     rightReachable = rightReachableCategories preparedStore lexicon tokens
     preInternTemplate store template = maybe store snd (raiseCategory template store (sourceCategory template))
 
-    shiftPosition (states, arena, store) (position, token) =
+    shiftPosition accumulator@([], _, _, _) _ = accumulator
+    shiftPosition (states, arena, store, _) (position, token) =
       let (shifted, arena', store') = foldl' (shiftOne position token) ([], arena, store) states
           closed = concatMap (closure store') shifted
-       in (prune closed, arena', store')
+          pruned = prune closed
+       in if null pruned
+            then ([], arena', store', states)
+            else (pruned, arena', store', pruned)
 
     shiftOne position token (acc, arena, store) state =
       foldl' (makeShift state position token) (acc, arena, store) (categoriesForWord token lexicon)
@@ -92,7 +98,7 @@ runParser config level initialStore lexicon templates root tokens =
       right : left : rest ->
         let application = filter enabledApplication (applicationResults store (itemCategory left) (itemCategory right))
             composition = if level >= WithComposition && null application
-              then filter (usefulComposition state) . filter enabledComposition $
+              then filter (withinCategoryBounds . resultOf) . filter (usefulComposition state) . filter enabledComposition $
                 compositionResults store (itemCategory left) (itemCategory right)
               else []
             fusedRaising = if level >= WithTypeRaising && null application
@@ -119,20 +125,43 @@ runParser config level initialStore lexicon templates root tokens =
         raiseCategoryFor item template = raiseCategory template store (itemCategory item)
         composeRaisedLeft _ _ Nothing = []
         composeRaisedLeft _ other (Just (raisedId, raisedStore)) =
-          filter enabledComposition (compositionResults raisedStore raisedId (itemCategory other))
+          filter (withinCategoryBounds . resultOf) . filter enabledComposition $
+            compositionResults raisedStore raisedId (itemCategory other)
         composeRaisedRight _ _ Nothing = []
         composeRaisedRight _ other (Just (raisedId, raisedStore)) =
-          filter enabledComposition (compositionResults raisedStore (itemCategory other) raisedId)
+          filter (withinCategoryBounds . resultOf) . filter enabledComposition $
+            compositionResults raisedStore (itemCategory other) raisedId
 
     enabledApplication (ForwardApplication, _, _) = allowForwardApplication ruleConfig
     enabledApplication (BackwardApplication, _, _) = allowBackwardApplication ruleConfig
     enabledApplication _ = False
     enabledComposition (ForwardComposition, _, _) = allowForwardComposition ruleConfig
     enabledComposition (BackwardComposition, _, _) = allowBackwardComposition ruleConfig
+    enabledComposition (ForwardCrossedComposition, _, _) =
+      allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
+    enabledComposition (BackwardCrossedComposition, _, _) =
+      allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
+    enabledComposition (ForwardGeneralizedComposition, _, _) =
+      allowForwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
+    enabledComposition (BackwardGeneralizedComposition, _, _) =
+      allowBackwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
+    enabledComposition (ForwardGeneralizedCrossedComposition, _, _) =
+      allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
+        && allowGeneralizedComposition ruleConfig
+    enabledComposition (BackwardGeneralizedCrossedComposition, _, _) =
+      allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
+        && allowGeneralizedComposition ruleConfig
     enabledComposition _ = False
 
+    resultOf (_, result, resultStore) = (result, resultStore)
+    withinCategoryBounds (categoryId, store) =
+      categoryDepth (`lookupCategory` store) categoryId <= maxDepth categoryBounds
+        && categorySlashCount (`lookupCategory` store) categoryId <= maxSlashes categoryBounds
+        && categoryArity (`lookupCategory` store) categoryId <= maxArity categoryBounds
+      where categoryBounds = categories config
+
     buildReduction state _ right rest usedTypeRaising (combinator, result, _) =
-      let isComposition = combinator `elem` [ForwardComposition, BackwardComposition]
+      let isComposition = combinator `notElem` [ForwardApplication, BackwardApplication]
           -- Reduction results are constituents, never lexical TR candidates.  Fused TR
           -- therefore cannot leave a raised category or a pending constraint in the beam.
           item = StackItem result (itemDerivation right) Nothing

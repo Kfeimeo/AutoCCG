@@ -5,7 +5,14 @@ module InductionSpec (tests) where
 import Corpus.Types (Sentence (..))
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Map.Strict as Map
-import Grammar.Induction (metricSentenceId, trainCorpusWithJobs, trainCorpusWithProgress)
+import Grammar.Induction
+  ( metricCategorizedTokenCount
+  , metricCategorizedTokenRate
+  , metricSentenceId
+  , trainCorpusWithJobs
+  , trainCorpusWithProgress
+  , trainingMetrics
+  )
 import Parser.Config (defaultConfig)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit ((@?=), testCase)
@@ -32,4 +39,6 @@ tests = testGroup "induction"
       events <- readIORef observed
       events @?= [(1, 2, "s1"), (2, 2, "s2")]
       result @?= trainCorpusWithJobs 1 defaultConfig corpus
+      map metricCategorizedTokenCount (trainingMetrics result) @?= [1, 1]
+      map metricCategorizedTokenRate (trainingMetrics result) @?= [1, 1]
   ]

@@ -128,7 +128,10 @@ updates the learned lexicon. Evaluation parallelizes sentences. Candidate
 ordering and serialized results remain deterministic across job counts.
 The `train` command displays a single-line progress bar with processed,
 covered, unresolved, and sentences-per-second counts. Pass `--no-progress`
-when redirecting output or running unattended batch jobs.
+when redirecting output or running unattended batch jobs. For every unresolved
+sentence, progress output also reports categorized token and distinct word-type
+counts/rates, the total number of lexical category assignments, the farthest
+parser position, and uncategorized words.
 
 Parse a tokenized sentence:
 
@@ -178,7 +181,9 @@ create sentence-private atoms or token-local categories to force coverage.
 
 ## Configuration
 
-Operational limits belong in YAML configuration. Fields not present in a config
+Operational limits belong in YAML configuration. The bounded atom inventory is
+declared with `atoms.predefined` and `atoms.max_count`; `S` must always be
+listed. Fields not present in a config
 file fall back to the Haskell defaults.
 
 ```yaml
@@ -213,11 +218,27 @@ training:
   unresolved_policy: queue
 ```
 
-The default atom table contains `S`, `NP`, `N`, and `PP`. Candidate constraints,
+The built-in atom table contains `S`, `NP`, `N`, and `PP`; configurations may
+predeclare additional bounded atoms such as `AP`. Candidate constraints,
 POS templates, seed entries, initialization policy, and bounded repair policy
 are documented in [`configs/default.yaml`](configs/default.yaml). Candidate
 categories introducing unconfigured atoms or exceeding depth, slash, or arity
 bounds are rejected during loading.
+
+Crossed and generalized Composition are independently gated by
+`rules.allow_crossed_composition` and
+`rules.allow_generalized_composition`. Generalized rules are limited to a
+uniform slash spine of degree two or greater; generalized crossed rules require
+both flags. Every generated result is checked against the configured category
+depth, slash-count, and arity bounds. Parsing remains strictly left-to-right:
+the parser shifts tokens in corpus order and only reduces the two adjacent
+constituents at the top of the stack.
+
+For diagnostic exhaustive-capacity runs, `configs/untruncated.yaml` raises all
+parser, grammar-beam, candidate-generation, and repair-validation capacities
+above any practically materializable in-memory search. It deliberately keeps
+the finite category, rule, and template bounds. This configuration can require
+extreme time and memory and should normally be tested on a small corpus first.
 
 ## Output
 
@@ -243,6 +264,13 @@ sentence_results.jsonl
 category_inventory.csv
 ambiguity.csv
 ```
+
+`evaluate` prints one diagnostic line per sentence. Its
+`sentence_results.jsonl` contains sentence coverage plus categorized-token and
+categorized-word-type coverage, uncategorized words, the farthest position
+reached on failure, and human-readable category stacks retained at the failure
+frontier. The `parse` command prints the same diagnostic fields when a sentence
+cannot reach root `S`.
 
 Serialized grammars are versioned. The current grammar format is version `2`
 and stores the word-to-category lexicon plus candidate source, prior cost,
@@ -330,6 +358,17 @@ the initialization configuration. Multi-candidate words remain inactive unless
 `activate_best_candidate_per_word` is explicitly enabled. Every repaired
 category is inserted into a temporary grammar and must parse the complete
 sentence to `S`; POS and WordNet never bypass parser validation.
+
+The default candidate configuration includes CCGbank-inspired, bounded
+punctuation approximations. Sentence-final `.`, `!`, and `?` use `S\S`;
+commas additionally offer `(S\S)/S`, `NP\NP`, and `N\N` for validated
+clause linking and constituent-final attachment. CCGbank itself uses dedicated
+punctuation leaves plus absorption and comma type-change rules; these lexical
+categories are an Application-compatible approximation until those explicitly
+bounded rules are implemented. Numbers use `N/N` first and `NP` as a fallback.
+Penn Treebank `CD`, Universal POS `NUM`/`PUNCT`, and untagged numeric or common
+punctuation token shapes are supported without treating the shape fallback as
+a general POS tagger.
 
 When constraints are disabled, the legacy bounded-universe repair path remains
 available for regression and performance comparisons. When enabled, unknown

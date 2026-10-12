@@ -13,3 +13,9 @@
 - Record candidate metrics and learned-category source/provenance; grammar
   serialization is now version 2 with version 1 read compatibility.
 - Add `--candidate-lexicon` training support and `inspect-candidates`.
+- Add bounded CCGbank-inspired candidates for commas, sentence-final question
+  and exclamation marks, and numbers, including PTB/UPOS aliases and a narrow
+  no-POS token-shape fallback.
+- Implement configuration-gated crossed and degree-two-or-greater generalized
+  Composition, including crossed generalized variants, with category-bound
+  checks and strictly left-to-right adjacent stack reduction.
