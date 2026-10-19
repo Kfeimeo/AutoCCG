@@ -54,7 +54,7 @@ Python 仅用于语料准备、格式转换、实验聚合和绘图。
 |   +-- Grammar/            # 语法类型、成本、beam、归纳循环
 |   +-- Lexicon/            # 初始化、修复、压缩
 |   +-- Parser/             # 配置、状态、beam 解析器、失败、计数
-|   +-- Serialization/      # 语法、词典、推导格式
+|   +-- Serialization/      # 语法、词典、候选词典、推导格式
 |   +-- CLI.hs              # 命令行接口
 +-- test/                   # 单元测试和性质测试
 +-- bench/                  # Criterion 基准测试
@@ -144,6 +144,16 @@ cabal run ccg-induction -- inspect-lexicon \
 cabal run ccg-induction -- inspect-candidates \
   --candidate-lexicon examples/toy-candidates.json \
   --word likes
+```
+
+基于语料 POS、配置中的 `pos_mapping`、可选的 WordNet 清单和 seed 构建候选词典 JSON：
+
+```bash
+cabal run ccg-induction -- build-candidates \
+  --corpus data/processed/train-pos.jsonl \
+  --config configs/default.yaml \
+  --wordnet data/processed/wordnet_inventory.json \
+  --output data/processed/candidate_lexicon.json
 ```
 
 ## 输入格式
@@ -312,6 +322,53 @@ locked seed 可以在初始化时激活。未锁定的 seed 条目会一直作�
 除非显式启用 `activate_best_candidate_per_word`。每个被修复的范畴都会插入临时语法，
 并且必须能把完整句子解析到 `S`；POS 和 WordNet 永远不能绕过解析器验证。
 
+### POS 到范畴的映射
+
+POS 证据通过 `pos_mapping` 映射为先验范畴，其组织方式参考
+[lightblue](https://github.com/DaisukeBekki/lightblue) 的词典构建：
+
+| lightblue | 本仓库 |
+|---|---|
+| `Templates.hs` 范畴构造函数 | `pos_mapping.templates`：带先验代价的具名范畴列表 |
+| `jumanPos2Cat` 对 JUMAN 品词/细分类/活用型的 guard 级联 | `pos_mapping.rules`：针对 POS 标签的有序规则，首个匹配者生效 |
+| `MyLexicon.hs` 手写功能词词典 | `seed_lexicon`：与 POS 候选合并，按先验代价排序 |
+| JUMAN++ 形态分析 | NLTK `pos_tag` 输出的 Penn Treebank 标签（或 spaCy/Stanza 的 UPOS） |
+
+```yaml
+pos_mapping:
+  templates:
+    proper_noun: [{category: "NP", prior_cost: 0}]
+    common_noun:
+      - {category: "N", prior_cost: 0}
+      - {category: "NP", prior_cost: 1}
+    verb:
+      - {category: "S\\NP", prior_cost: 0}
+      - {category: "(S\\NP)/NP", prior_cost: 0}
+    participle_modifier: [{category: "N/N", prior_cost: 2}]
+  rules:
+    - {tags: ["NNP", "NNPS"], templates: [proper_noun]}   # 必须位于 prefix NN 之前
+    - {prefix: "NN", templates: [common_noun]}
+    - {tags: ["VB", "VBD", "VBP", "VBZ"], templates: [verb]}
+    - {tag: "VBG", templates: [verb, participle_modifier],
+       categories: [{category: "NP", prior_cost: 3}]}
+```
+
+每条规则恰好使用 `tag`、`tags` 或 `prefix` 之一进行匹配，依次展开其具名
+`templates`，再追加内联 `categories`。引用未定义模板或匹配条件不唯一的规则会在
+加载配置时被拒绝。YAML 中请给标签和范畴加引号：裸写的 `N` 会被解析为布尔值。
+细粒度的 Penn Treebank 标签相当于 JUMAN 的活用细分类：动词形态、比较级、
+所有格和标点类别会选择不同的模板组合。默认配置同时覆盖 NLTK 输出的 Penn Treebank
+标签集，以及 spaCy 和 Stanza 输出的 Universal POS 标签。扁平的
+`pos_to_categories: {TAG: [...]}` 表仍被接受，作为在 `pos_mapping.rules`
+之后尝试的精确标签规则的简写。
+
+对每个 token，驱动级联的标签是语料 POS（UPOS `PUNCT` 会按 token 形状细化）。
+没有 POS 时使用封闭形式的 token 形状。否则，若启用了 `use_wordnet_inventory`，
+并通过 `candidate_constraints.wordnet_inventory_path` 或 `--wordnet` 提供了清单，
+则使用该 lemma 的所有 WordNet POS。与 lightblue 不同，这里的范畴不带形态特征
+（`S[dcl]`、`NP[nom]`）：原子清单没有特征，因此动词形态只影响提出哪些有界模板。
+禁用候选约束时，旧版初始化会为匹配规则分配先验代价最低的范畴。
+
 禁用约束时，旧的有界全集修复路径仍可用于回归和性能比较。
 启用约束时，unknown fallback 只使用小型固定模板清单，
 绝不枚举完整范畴全集。
@@ -336,18 +393,28 @@ locked seed 可以在初始化时激活。未锁定的 seed 条目会一直作�
 Python 工具应准备数据并聚合实验。它不得重复实现 Haskell 解析器、
 grammar beam、词汇修复搜索或归纳算法。
 
-WordNet、spaCy 和 Stanza 都是显式可选依赖。仓库不会在预处理期间自动下载 NLP 包、
+NLTK、WordNet、spaCy 和 Stanza 都是显式可选依赖。仓库不会在预处理期间自动下载 NLP 包、
 语料或模型文件，因此请在运行脚本前安装需要使用的组件：
 
 ```bash
 python -m pip install nltk spacy stanza pyyaml
 python -m spacy download en_core_web_sm
-python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
+python -c "import nltk; nltk.download('averaged_perceptron_tagger_eng'); nltk.download('wordnet'); nltk.download('omw-1.4')"
 python -c "import stanza; stanza.download('en')"
 ```
 
 进行 POS/lemma 增强时，从已经预分词、且记录中已有 `tokens` 的 JSONL 语料开始。
-选择 spaCy：
+默认后端是 NLTK 的 averaged-perceptron 标注器，它为 `pos_mapping` 级联写出
+Penn Treebank 标签，并写出 WordNet lemma：
+
+```bash
+python python_tools/enrich_with_pos.py \
+  --input data/processed/train.jsonl \
+  --output data/processed/train-pos.jsonl \
+  --backend nltk
+```
+
+也可以选择 spaCy：
 
 ```bash
 python python_tools/enrich_with_pos.py \
@@ -367,8 +434,8 @@ python python_tools/enrich_with_pos.py \
   --model en
 ```
 
-增强步骤会保留既有分词，并写出 `lemmas`、位于 `pos` 字段的 Universal POS 标签
-以及 `morph`。如果标注器改变了 token 对齐，脚本会失败，而不是静默改写句子。
+增强步骤会保留既有分词，并写出 `lemmas`、`pos`（NLTK 为 Penn Treebank 标签，
+spaCy/Stanza 为 Universal POS）以及 `morph`（NLTK 下为空）。如果标注器改变了 token 对齐，脚本会失败，而不是静默改写句子。
 
 构建可选的 WordNet lemma/POS 清单。这里 NLTK 和 WordNet 数据仍是显式依赖；
 脚本会验证它们已安装，并且绝不会自动下载：
@@ -379,10 +446,11 @@ python python_tools/build_wordnet_inventory.py \
   --output data/processed/wordnet_inventory.json
 ```
 
-基于语料 POS、WordNet fallback、POS 模板和 seed 构建确定性的 JSON 候选层：
+基于语料 POS、WordNet fallback、`pos_mapping` 级联和 seed 构建确定性的 JSON 候选层。
+映射在 Haskell 中执行，因此候选文件与训练时即时构建走同一条代码路径：
 
 ```bash
-python python_tools/build_candidate_lexicon.py \
+cabal run ccg-induction -- build-candidates \
   --corpus data/processed/train-pos.jsonl \
   --wordnet data/processed/wordnet_inventory.json \
   --config configs/default.yaml \

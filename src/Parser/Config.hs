@@ -10,6 +10,7 @@ module Parser.Config
   , TrainingConfig (..)
   , CandidateConstraintsConfig (..)
   , CandidateTemplateConfig (..)
+  , PosMapping (..)
   , SeedEntryConfig (..)
   , InitializationConfig (..)
   , RepairConfig (..)
@@ -18,12 +19,14 @@ module Parser.Config
   , loadConfig
   ) where
 
-import Data.Aeson (FromJSON (..), withObject, (.:?), (.!=))
+import Data.Aeson (FromJSON (..), Object, withObject, (.:?), (.!=))
+import Data.Aeson.Types (Parser)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
 import GHC.Generics (Generic)
+import Lexicon.PosMapping (CandidateTemplateConfig (..), PosMapping (..), appendExactTagRules, emptyPosMapping)
 
 data AtomConfig = AtomConfig
   { predefinedAtoms :: ![Text], maxAtomCount :: !Int
@@ -56,16 +59,12 @@ data CandidateConstraintsConfig = CandidateConstraintsConfig
   { candidateConstraintsEnabled :: !Bool
   , candidateLexiconPath :: !(Maybe FilePath)
   , useWordNetInventory :: !Bool
+  , wordNetInventoryPath :: !(Maybe FilePath)
   , usePosTemplates :: !Bool
   , useSeedLexicon :: !Bool
   , unknownPolicy :: !Text
   , maxCandidatesPerWord :: !Int
   , rejectCandidatesOutsideCategoryBounds :: !Bool
-  } deriving (Eq, Show, Generic)
-
-data CandidateTemplateConfig = CandidateTemplateConfig
-  { templateCategory :: !Text
-  , templatePriorCost :: !Int
   } deriving (Eq, Show, Generic)
 
 data SeedEntryConfig = SeedEntryConfig
@@ -94,7 +93,7 @@ data Config = Config
   , categories :: !CategoryBounds, parser :: !ParserConfig, grammar :: !GrammarConfig
   , rules :: !RuleConfig, training :: !TrainingConfig
   , candidateConstraints :: !CandidateConstraintsConfig
-  , posToCategories :: !(Map Text [CandidateTemplateConfig])
+  , posMapping :: !PosMapping
   , seedLexicon :: !(Map Text [SeedEntryConfig])
   , initialization :: !InitializationConfig
   , repair :: !RepairConfig
@@ -108,8 +107,8 @@ defaultConfig = Config
   (GrammarConfig 16 32 2)
   (RuleConfig True True True True False False)
   (TrainingConfig 42 100 "queue")
-  (CandidateConstraintsConfig False Nothing True True True "small_default" 8 True)
-  Map.empty
+  (CandidateConstraintsConfig False Nothing True Nothing True True "small_default" 8 True)
+  emptyPosMapping
   Map.empty
   (InitializationConfig True True False 0)
   (RepairConfig True 100 10 True 5)
@@ -140,13 +139,11 @@ instance FromJSON TrainingConfig where
 instance FromJSON CandidateConstraintsConfig where
   parseJSON = withObject "candidate_constraints" $ \o -> CandidateConstraintsConfig
     <$> o .:? "enabled" .!= False <*> o .:? "candidate_lexicon_path"
-    <*> o .:? "use_wordnet_inventory" .!= True <*> o .:? "use_pos_templates" .!= True
+    <*> o .:? "use_wordnet_inventory" .!= True <*> o .:? "wordnet_inventory_path"
+    <*> o .:? "use_pos_templates" .!= True
     <*> o .:? "use_seed_lexicon" .!= True <*> o .:? "unknown_policy" .!= "small_default"
     <*> o .:? "max_candidates_per_word" .!= 8
     <*> o .:? "reject_candidates_outside_category_bounds" .!= True
-instance FromJSON CandidateTemplateConfig where
-  parseJSON = withObject "POS category template" $ \o -> CandidateTemplateConfig
-    <$> o .:? "category" .!= "" <*> o .:? "prior_cost" .!= 0
 instance FromJSON SeedEntryConfig where
   parseJSON = withObject "seed lexicon entry" $ \o -> SeedEntryConfig
     <$> o .:? "category" .!= "" <*> o .:? "prior_cost" .!= 0 <*> o .:? "lock" .!= False
@@ -170,10 +167,18 @@ instance FromJSON Config where
     <*> o .:? "grammar" .!= grammar defaultConfig <*> o .:? "rules" .!= rules defaultConfig
     <*> o .:? "training" .!= training defaultConfig
     <*> o .:? "candidate_constraints" .!= candidateConstraints defaultConfig
-    <*> o .:? "pos_to_categories" .!= posToCategories defaultConfig
+    <*> posMappingField o
     <*> o .:? "seed_lexicon" .!= seedLexicon defaultConfig
     <*> o .:? "initialization" .!= initialization defaultConfig
     <*> o .:? "repair" .!= repair defaultConfig
+
+-- | @pos_mapping@ is the ordered rule cascade.  The flat @pos_to_categories@
+-- table remains accepted as shorthand for exact-tag rules tried after it.
+posMappingField :: Object -> Parser PosMapping
+posMappingField o = do
+  cascade <- o .:? "pos_mapping" .!= emptyPosMapping
+  table <- o .:? "pos_to_categories" .!= (Map.empty :: Map Text [CandidateTemplateConfig])
+  pure (appendExactTagRules table cascade)
 
 loadConfig :: FilePath -> IO (Either String Config)
 loadConfig path = either (Left . prettyPrintParseException) Right <$> decodeFileEither path

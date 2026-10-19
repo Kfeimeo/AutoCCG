@@ -12,12 +12,13 @@ import CCG.Category (CategoryId, Slash (..))
 import CCG.CategoryStore
 import CCG.TypeRaising (TypeRaisingTemplate (..))
 import Corpus.Types (Sentence (..))
+import Data.List (sortOn)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Grammar.Types (CategoryProvenance (..), Grammar (..))
 import Lexicon.CandidateLexicon
+import Lexicon.PosMapping (CandidateTemplateConfig (..), PosMapping, resolvePosTemplates)
 import Lexicon.Types (categoriesForWord, emptyLexicon, insertEntry)
 import Parser.Config (InitializationConfig (..))
 
@@ -36,8 +37,11 @@ internNamedCategory text grammar = do
   (categoryId, atoms, store) <- parseCategory text (grammarAtoms grammar) (grammarCategories grammar)
   pure (categoryId, grammar { grammarAtoms = atoms, grammarCategories = store })
 
-initializeSentenceWords :: Sentence -> Grammar -> Grammar
-initializeSentenceWords sentence grammar = foldl' initialize grammar (zip3 [0 :: Int ..] (tokens sentence) paddedPos)
+-- | Legacy initialization used only when candidate constraints are disabled:
+-- each new word receives the lowest-prior category of its configured POS
+-- rule, or a positional guess when no rule matches.
+initializeSentenceWords :: PosMapping -> Sentence -> Grammar -> Grammar
+initializeSentenceWords mapping sentence grammar = foldl' initialize grammar (zip3 [0 :: Int ..] (tokens sentence) paddedPos)
   where
     paddedPos = posTags sentence ++ repeat ""
     tokenCount = length (tokens sentence)
@@ -48,10 +52,7 @@ initializeSentenceWords sentence grammar = foldl' initialize grammar (zip3 [0 ::
           Right (categoryId, updated) -> updated { grammarLexicon = insertEntry word categoryId (grammarLexicon updated) }
 
     guess index count pos
-      | pos `elem` ["DT", "PDT", "WDT"] = "NP/N"
-      | Text.isPrefixOf "JJ" pos = "N/N"
-      | Text.isPrefixOf "NN" pos = if pos `elem` ["NN", "NNS"] then "N" else "NP"
-      | Text.isPrefixOf "VB" pos = if index < count - 1 then "(S\\NP)/NP" else "S\\NP"
+      | Just (template : _) <- sortOn templatePriorCost <$> resolvePosTemplates mapping pos = templateCategory template
       | count == 1 = "S"
       | index == 0 || index == count - 1 = "NP"
       | otherwise = "(S\\NP)/NP"

@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Explicitly enrich tokenized JSONL with lemma, Universal POS, and morphology."""
+"""Explicitly enrich tokenized JSONL with lemmas, POS tags, and morphology.
+
+Backends:
+
+- ``nltk`` (default): NLTK's averaged-perceptron tagger writes fine-grained
+  Penn Treebank tags (``NNP``, ``VBZ``, ``JJR`` ...), which the configured
+  ``pos_mapping`` cascade maps to CCG prior categories; lemmas come from the
+  WordNet lemmatizer and ``morph`` is left empty.
+- ``spacy`` / ``stanza``: Universal POS tags plus UD morphology.
+
+The token-to-category mapping itself is not done here; it belongs to the
+Haskell candidate builder (``ccg-induction build-candidates``).
+"""
 
 from __future__ import annotations
 
@@ -10,6 +22,51 @@ from pathlib import Path
 from typing import Any
 
 Tagger = Callable[[list[str]], tuple[list[str], list[str], list[dict[str, str]]]]
+
+
+PTB_TO_WORDNET = {"J": "a", "N": "n", "R": "r", "V": "v"}
+
+
+def nltk_tagger() -> Tagger:
+    try:
+        from nltk.corpus import wordnet
+        from nltk.stem import WordNetLemmatizer
+        from nltk.tag import PerceptronTagger
+    except ImportError as error:
+        raise SystemExit("NLTK is not installed; install nltk explicitly") from error
+    try:
+        tagger = PerceptronTagger()
+    except LookupError as error:
+        raise SystemExit(
+            "NLTK tagger data is not installed. Install it explicitly with "
+            "nltk.download('averaged_perceptron_tagger_eng'); this tool never downloads data."
+        ) from error
+    try:
+        wordnet.ensure_loaded()
+    except LookupError as error:
+        raise SystemExit(
+            "NLTK WordNet data is not installed. Install it explicitly with "
+            "nltk.download('wordnet'); this tool never downloads data."
+        ) from error
+    lemmatizer = WordNetLemmatizer()
+
+    def lemma(token: str, tag: str) -> str:
+        if tag in ("NNP", "NNPS"):
+            return token
+        wordnet_pos = PTB_TO_WORDNET.get(tag[:1])
+        lowered = token.lower()
+        return lowered if wordnet_pos is None else lemmatizer.lemmatize(lowered, wordnet_pos)
+
+    def tag(tokens: list[str]) -> tuple[list[str], list[str], list[dict[str, str]]]:
+        # The tagger receives the existing tokens, so alignment is preserved.
+        tagged = tagger.tag(tokens)
+        return (
+            [lemma(token, pos) for token, pos in tagged],
+            [pos for _, pos in tagged],
+            [{} for _ in tagged],
+        )
+
+    return tag
 
 
 def spacy_tagger(model: str) -> Tagger:
@@ -78,10 +135,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--backend", choices=("spacy", "stanza"), default="spacy")
-    parser.add_argument("--model", default="en_core_web_sm", help="spaCy model or Stanza language code")
+    parser.add_argument("--backend", choices=("nltk", "spacy", "stanza"), default="nltk")
+    parser.add_argument(
+        "--model",
+        help="spaCy model (default en_core_web_sm) or Stanza language code (default en); unused by nltk",
+    )
     args = parser.parse_args()
-    tagger = spacy_tagger(args.model) if args.backend == "spacy" else stanza_tagger(args.model)
+    if args.backend == "nltk":
+        tagger = nltk_tagger()
+    elif args.backend == "spacy":
+        tagger = spacy_tagger(args.model or "en_core_web_sm")
+    else:
+        tagger = stanza_tagger(args.model or "en")
     count = enrich(args.input, args.output, tagger)
     print(f"wrote {count} enriched sentences to {args.output}")
 

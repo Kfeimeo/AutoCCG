@@ -20,7 +20,6 @@ def load(name: str, relative: str):
 download_corpora = load("download_corpora", "python_tools/download_corpora.py")
 experiment = load("run_discovery_experiment", "python_tools/run_discovery_experiment.py")
 wordnet_inventory = load("build_wordnet_inventory", "python_tools/build_wordnet_inventory.py")
-candidate_builder = load("build_candidate_lexicon", "python_tools/build_candidate_lexicon.py")
 pos_enrichment = load("enrich_with_pos", "python_tools/enrich_with_pos.py")
 
 
@@ -54,91 +53,6 @@ class CorpusToolsTest(unittest.TestCase):
             ["ADJ", "NOUN", "VERB"],
         )
 
-    def test_candidate_builder_prefers_token_pos_and_merges_seed(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            corpus = root / "corpus.jsonl"
-            inventory = root / "wordnet.json"
-            corpus.write_text(json.dumps({
-                "sentence_id": "s", "tokens": ["book"], "lemmas": ["book"], "pos": ["VERB"],
-            }) + "\n", encoding="utf-8")
-            inventory.write_text(json.dumps({"book": ["NOUN"]}), encoding="utf-8")
-            config = {
-                "candidate_constraints": {"max_candidates_per_word": 8},
-                "pos_to_categories": {
-                    "NOUN": [{"category": "N", "prior_cost": 0}],
-                    "VERB": [{"category": "S\\NP", "prior_cost": 1}],
-                },
-                "seed_lexicon": {"book": [{"category": "NP", "prior_cost": 0, "lock": True}]},
-            }
-            document = candidate_builder.build_candidates(corpus, inventory, config)
-            candidates = document["entries"][0]["candidates"]
-            self.assertEqual([item["category"] for item in candidates], ["NP", "S\\NP"])
-            self.assertNotIn("N", [item["category"] for item in candidates])
-
-    def test_candidate_builder_uses_wordnet_only_when_token_pos_is_missing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            corpus = root / "corpus.jsonl"
-            inventory = root / "wordnet.json"
-            corpus.write_text(json.dumps({
-                "sentence_id": "s", "tokens": ["book"], "lemmas": ["book"],
-            }) + "\n", encoding="utf-8")
-            inventory.write_text(json.dumps({"book": ["NOUN", "VERB"]}), encoding="utf-8")
-            config = {
-                "candidate_constraints": {"max_candidates_per_word": 8},
-                "pos_to_categories": {
-                    "NOUN": [{"category": "N", "prior_cost": 0}],
-                    "VERB": [{"category": "S\\NP", "prior_cost": 1}],
-                },
-            }
-            document = candidate_builder.build_candidates(corpus, inventory, config)
-            candidates = document["entries"][0]["candidates"]
-            self.assertEqual([item["category"] for item in candidates], ["N", "S\\NP"])
-            self.assertTrue(all(item["source"] == "FromWordNetPos" for item in candidates))
-
-    def test_candidate_builder_infers_punctuation_and_numeric_shapes_without_pos(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            corpus = root / "corpus.jsonl"
-            corpus.write_text(json.dumps({
-                "sentence_id": "s", "tokens": ["42", "?"],
-            }) + "\n", encoding="utf-8")
-            config = {
-                "candidate_constraints": {"max_candidates_per_word": 8},
-                "pos_to_categories": {
-                    "NUM": [{"category": "N/N", "prior_cost": 0}, {"category": "NP", "prior_cost": 1}],
-                    "PUNCT_FINAL": [{"category": "S\\S", "prior_cost": 0}],
-                },
-            }
-            document = candidate_builder.build_candidates(corpus, None, config)
-            entries = {entry["word"]: entry for entry in document["entries"]}
-            self.assertEqual([item["category"] for item in entries["42"]["candidates"]], ["N/N", "NP"])
-            self.assertEqual([item["category"] for item in entries["?"]["candidates"]], ["S\\S"])
-            self.assertTrue(all(
-                item["source"] == "FromUnknownFallback"
-                for entry in entries.values() for item in entry["candidates"]
-            ))
-
-    def test_upos_punctuation_is_refined_by_symbol(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            corpus = root / "corpus.jsonl"
-            corpus.write_text(json.dumps({
-                "sentence_id": "s", "tokens": [",", "!"], "pos": ["PUNCT", "PUNCT"],
-            }) + "\n", encoding="utf-8")
-            config = {
-                "candidate_constraints": {"max_candidates_per_word": 8},
-                "pos_to_categories": {
-                    "PUNCT_COMMA": [{"category": "(S\\S)/S", "prior_cost": 0}],
-                    "PUNCT_FINAL": [{"category": "S\\S", "prior_cost": 0}],
-                },
-            }
-            document = candidate_builder.build_candidates(corpus, None, config)
-            entries = {entry["word"]: entry for entry in document["entries"]}
-            self.assertEqual(entries[","]["candidates"][0]["category"], "(S\\S)/S")
-            self.assertEqual(entries["!"]["candidates"][0]["category"], "S\\S")
-
     def test_pos_enrichment_preserves_alignment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -153,6 +67,19 @@ class CorpusToolsTest(unittest.TestCase):
             self.assertEqual(record["pos"], ["VERB"])
             self.assertEqual(record["morph"], [{"Tense": "Pres"}])
 
+
+    def test_nltk_backend_writes_aligned_penn_treebank_tags(self) -> None:
+        try:
+            tag = pos_enrichment.nltk_tagger()
+        except SystemExit as error:
+            self.skipTest(str(error))
+        lemmas, pos, morph = tag(["Mary", "gave", "the", "dogs", "bones", "."])
+        self.assertEqual(len(pos), 6)
+        self.assertEqual(pos[0], "NNP")
+        self.assertEqual(pos[1], "VBD")
+        self.assertEqual(pos[-1], ".")
+        self.assertEqual(lemmas[:4], ["Mary", "give", "the", "dog"])
+        self.assertEqual(morph, [{}] * 6)
 
 if __name__ == "__main__":
     unittest.main()

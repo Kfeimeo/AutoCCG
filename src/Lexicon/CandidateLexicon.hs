@@ -11,6 +11,10 @@ module Lexicon.CandidateLexicon
   , candidateLexiconEntries
   , candidateLexiconStats
   , loadCandidateLexicon
+  , decodeCandidateLexicon
+  , WordNetInventory
+  , emptyWordNetInventory
+  , loadWordNetInventory
   , buildCandidateLexiconFromConfig
   , configuredAtomTable
   , categoryWithinBounds
@@ -30,6 +34,7 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
+import Lexicon.PosMapping (resolvePosTemplates)
 import Parser.Config
 import qualified Parser.Config as Config
 
@@ -116,11 +121,24 @@ loadCandidateLexicon
   -> AtomTable
   -> CategoryStore
   -> IO (Either Text (AtomTable, CategoryStore, CandidateLexicon))
-loadCandidateLexicon bounds rejectNewAtoms maxPerWord path atoms store = do
-  decoded <- eitherDecode <$> Lazy.readFile path
-  pure $ if maxPerWord < 1
+loadCandidateLexicon bounds rejectNewAtoms maxPerWord path atoms store =
+  decodeCandidateLexicon bounds rejectNewAtoms maxPerWord path atoms store <$> Lazy.readFile path
+
+-- | Decode and intern a version-1 candidate lexicon document.  The 'FilePath'
+-- only labels diagnostics.
+decodeCandidateLexicon
+  :: CategoryBounds
+  -> Bool
+  -> Int
+  -> FilePath
+  -> AtomTable
+  -> CategoryStore
+  -> Lazy.ByteString
+  -> Either Text (AtomTable, CategoryStore, CandidateLexicon)
+decodeCandidateLexicon bounds rejectNewAtoms maxPerWord path atoms store bytes =
+  if maxPerWord < 1
     then Left (Text.pack path <> ": max_candidates_per_word must be at least 1")
-    else case decoded of
+    else case eitherDecode bytes of
       Left message -> Left (Text.pack path <> ": " <> Text.pack message)
       Right (CandidateDocument version entries)
         | version /= 1 -> Left (Text.pack path <> ": unsupported candidate lexicon version: " <> tshow version)
@@ -145,13 +163,35 @@ loadCandidateLexicon bounds rejectNewAtoms maxPerWord path atoms store = do
     location entryIndex candidateIndex =
       Text.pack path <> ": entry " <> tshow entryIndex <> ", candidate " <> tshow candidateIndex <> ": "
 
+-- | Lemma to Universal POS values, as written by
+-- @python_tools/build_wordnet_inventory.py@.  WordNet supplies lemma-level
+-- possible POS only; it is consulted only for tokens without corpus POS.
+type WordNetInventory = Map Text [Text]
+
+emptyWordNetInventory :: WordNetInventory
+emptyWordNetInventory = Map.empty
+
+loadWordNetInventory :: FilePath -> IO (Either Text WordNetInventory)
+loadWordNetInventory path =
+  either (Left . ((Text.pack path <> ": ") <>) . Text.pack) Right . eitherDecode <$> Lazy.readFile path
+
+-- | Build the bounded candidate layer from seeds and corpus POS.
+--
+-- Per token, the tag driving the 'PosMapping' cascade is chosen as:
+--
+-- 1. explicit corpus POS (UPOS @PUNCT@ is refined by token shape so that
+--    final punctuation does not inherit comma candidates);
+-- 2. otherwise a closed-form token shape ('FromUnknownFallback');
+-- 3. otherwise every WordNet POS of the lemma ('FromWordNetPos'), when
+--    @use_wordnet_inventory@ is enabled.
 buildCandidateLexiconFromConfig
   :: Config
+  -> WordNetInventory
   -> [Sentence]
   -> AtomTable
   -> CategoryStore
   -> Either Text (AtomTable, CategoryStore, CandidateLexicon)
-buildCandidateLexiconFromConfig config corpus atoms store = do
+buildCandidateLexiconFromConfig config inventory corpus atoms store = do
   configuredAtoms <- configuredAtomTable config atoms
   if maxCandidatesPerWord constraints < 1
     then Left "max_candidates_per_word must be at least 1"
@@ -177,17 +217,23 @@ buildCandidateLexiconFromConfig config corpus atoms store = do
           let updated = map (\candidate -> if candidateCategoryId candidate == categoryId then candidate { candidateLocked = True } else candidate)
               CandidateLexicon entries = lexicon
           Right (atoms0, store0, CandidateLexicon (Map.adjust updated word entries))
-    addSentence state sentence = foldM addToken state (zip (tokens sentence) paddedPos)
+    addSentence state sentence = foldM addToken state (zip3 (tokens sentence) paddedLemmas paddedPos)
       where
         paddedPos = posTags sentence ++ repeat ""
-    addToken state (word, pos) = do
-      let (templatePos, source)
-            | pos == "PUNCT" && not (Text.null (inferShapePos word)) = (inferShapePos word, FromPosTemplate)
-            | not (Text.null pos) = (pos, FromPosTemplate)
-            | otherwise = (inferShapePos word, FromUnknownFallback)
-      withPos <- case Map.lookup templatePos (posToCategories config) of
-        Nothing -> Right state
-        Just templates -> addConfigured word source state templates
+        paddedLemmas = lemmas sentence ++ drop (length (lemmas sentence)) (tokens sentence)
+    addToken state (word, lemma, pos) = do
+      let shape = inferShapePos word
+          evidence
+            | pos == "PUNCT" && not (Text.null shape) = [(shape, FromPosTemplate)]
+            | not (Text.null pos) = [(pos, FromPosTemplate)]
+            | not (Text.null shape) = [(shape, FromUnknownFallback)]
+            | useWordNetInventory constraints =
+                [(tag, FromWordNetPos) | tag <- Map.findWithDefault [] (Text.toLower lemma) inventory]
+            | otherwise = []
+          addEvidence current (tag, source) = case resolvePosTemplates (posMapping config) tag of
+            Nothing -> Right current
+            Just templates -> addConfigured word source current templates
+      withPos <- foldM addEvidence state evidence
       if useSeedLexicon constraints
         then case Map.lookup (Text.toLower word) (seedLexicon config) of
           Nothing -> Right withPos

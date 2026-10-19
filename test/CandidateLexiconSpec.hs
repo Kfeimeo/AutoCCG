@@ -9,6 +9,7 @@ import Corpus.Types (Sentence (..))
 import qualified Data.Map.Strict as Map
 import Grammar.Types (CategoryProvenance (..), Grammar (..))
 import Lexicon.CandidateLexicon
+import Lexicon.PosMapping (PosMatch (..), PosRule (..), posMappingFromTable)
 import Lexicon.Initialization (emptyGrammar, initializeLearnedLexicon, internNamedCategory)
 import Lexicon.Repair (RepairBatch (..), RepairOperation (..), RepairProposal (..), RepairStats (..), repairSentenceWithCandidates, successfulRepairProposals)
 import Lexicon.Types (categoriesForWord, insertEntry)
@@ -23,13 +24,13 @@ tests :: TestTree
 tests = testGroup "candidate lexicon"
   [ testCase "POS templates produce bounded candidates" $ do
       let config = enabledConfig
-            { posToCategories = Map.fromList
+            { posMapping = posMappingFromTable (Map.fromList
                 [ ("PROPN", [CandidateTemplateConfig "NP" 0])
                 , ("VERB", [CandidateTemplateConfig "S\\NP" 1, CandidateTemplateConfig "(S\\NP)/NP" 0])
-                ]
+                ])
             }
           corpus = [sentence ["John", "likes"] ["PROPN", "VERB"]]
-      case buildCandidateLexiconFromConfig config corpus (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+      case buildCandidateLexiconFromConfig config emptyWordNetInventory corpus (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
         Left message -> assertFailure (show message)
         Right (atoms, store, candidates) -> do
           render atoms store (candidateCategoriesForWord "John" candidates) @?= ["NP"]
@@ -41,7 +42,7 @@ tests = testGroup "candidate lexicon"
                 , ("of", [SeedEntryConfig "PP/NP" 0 False])
                 ]
             }
-      case buildCandidateLexiconFromConfig config [] (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+      case buildCandidateLexiconFromConfig config emptyWordNetInventory [] (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
         Left message -> assertFailure (show message)
         Right (atoms, store, candidates) -> do
           let grammar = initializeLearnedLexicon (initialization config) candidates
@@ -50,11 +51,11 @@ tests = testGroup "candidate lexicon"
           categoriesForWord "of" (grammarLexicon grammar) @?= []
   , testCase "parser cannot see inactive candidates until repair" $ do
       let config = enabledConfig
-            { posToCategories = Map.singleton "VERB" [CandidateTemplateConfig "S\\NP" 0]
+            { posMapping = posMappingFromTable (Map.singleton "VERB" [CandidateTemplateConfig "S\\NP" 0])
             , initialization = InitializationConfig True False False 0
             }
           corpusSentence = sentence ["John", "runs"] ["PROPN", "VERB"]
-      case buildCandidateLexiconFromConfig config [corpusSentence] (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+      case buildCandidateLexiconFromConfig config emptyWordNetInventory [corpusSentence] (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
         Left message -> assertFailure (show message)
         Right (atoms, store, candidates) -> case internNamedCategory "NP" (emptyGrammar { grammarAtoms = atoms, grammarCategories = store }) of
           Left message -> assertFailure (show message)
@@ -85,12 +86,12 @@ tests = testGroup "candidate lexicon"
         Right _ -> assertFailure "out-of-bounds candidate was accepted"
   , testCase "repair prefers lower candidate prior when both categories parse" $ do
       let config = enabledConfig
-            { posToCategories = Map.singleton "X"
-                [CandidateTemplateConfig "N" 0, CandidateTemplateConfig "NP" 5]
+            { posMapping = posMappingFromTable (Map.singleton "X"
+                [CandidateTemplateConfig "N" 0, CandidateTemplateConfig "NP" 5])
             , initialization = InitializationConfig True False False 0
             }
           corpusSentence = sentence ["f", "w"] ["", "X"]
-      case buildCandidateLexiconFromConfig config [corpusSentence] (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
+      case buildCandidateLexiconFromConfig config emptyWordNetInventory [corpusSentence] (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
         Left message -> assertFailure (show message)
         Right (atoms, store, candidates) -> do
           grammar <- addLearned [(("f", "S/NP")), (("f", "S/N"))]
@@ -114,9 +115,9 @@ tests = testGroup "candidate lexicon"
   , testCase "configured atoms are available to POS templates" $ do
       let config = enabledConfig
             { atoms = AtomConfig ["S", "NP", "N", "PP", "AP"] 5
-            , posToCategories = Map.singleton "ADJ" [CandidateTemplateConfig "AP" 0]
+            , posMapping = posMappingFromTable (Map.singleton "ADJ" [CandidateTemplateConfig "AP" 0])
             }
-      case buildCandidateLexiconFromConfig config [sentence ["happy"] ["ADJ"]]
+      case buildCandidateLexiconFromConfig config emptyWordNetInventory [sentence ["happy"] ["ADJ"]]
         (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
         Left message -> assertFailure (show message)
         Right (atomTable, _, _) ->
@@ -124,9 +125,9 @@ tests = testGroup "candidate lexicon"
   , testCase "POS templates reject undeclared atoms" $ do
       let config = enabledConfig
             { atoms = AtomConfig ["S", "NP", "N", "PP"] 8
-            , posToCategories = Map.singleton "ADJ" [CandidateTemplateConfig "AP" 0]
+            , posMapping = posMappingFromTable (Map.singleton "ADJ" [CandidateTemplateConfig "AP" 0])
             }
-      case buildCandidateLexiconFromConfig config [sentence ["happy"] ["ADJ"]]
+      case buildCandidateLexiconFromConfig config emptyWordNetInventory [sentence ["happy"] ["ADJ"]]
         (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
         Left message ->
           assertBool "missing undeclared-atom diagnostic"
@@ -144,9 +145,12 @@ tests = testGroup "candidate lexicon"
       case loaded of
         Left message -> assertFailure message
         Right config -> do
-          let tags = Map.keys (posToCategories config)
+          let tags = concatMap (ruleTags . posRuleMatch) (posRules (posMapping config))
+              ruleTags match = case match of
+                ExactTags values -> values
+                TagPrefix prefix -> [prefix]
               corpus = [sentence [tag] [tag] | tag <- tags]
-          case buildCandidateLexiconFromConfig config corpus
+          case buildCandidateLexiconFromConfig config emptyWordNetInventory corpus
             (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
             Left message -> assertFailure (show message)
             Right (atomTable, _, _) ->
@@ -156,7 +160,7 @@ tests = testGroup "candidate lexicon"
       case loaded of
         Left message -> assertFailure message
         Right config ->
-          case buildCandidateLexiconFromConfig config
+          case buildCandidateLexiconFromConfig config emptyWordNetInventory
             [sentence ["42", ",", "!", "?"] ["", "PUNCT", "PUNCT", "PUNCT"]]
             (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
             Left message -> assertFailure (show message)

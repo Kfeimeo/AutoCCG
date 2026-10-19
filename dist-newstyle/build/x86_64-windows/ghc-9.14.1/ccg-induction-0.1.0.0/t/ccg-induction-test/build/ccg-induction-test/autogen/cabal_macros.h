@@ -20,6 +20,16 @@
   (major1) == 4 && (major2) <  22 || \
   (major1) == 4 && (major2) == 22 && (minor) <= 0)
 #endif /* MIN_VERSION_base */
+/* package bytestring-0.12.2.0 */
+#ifndef VERSION_bytestring
+#define VERSION_bytestring "0.12.2.0"
+#endif /* VERSION_bytestring */
+#ifndef MIN_VERSION_bytestring
+#define MIN_VERSION_bytestring(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  12 || \
+  (major1) == 0 && (major2) == 12 && (minor) <= 2)
+#endif /* MIN_VERSION_bytestring */
 /* package ccg-induction-0.1.0.0 */
 #ifndef VERSION_ccg_induction
 #define VERSION_ccg_induction "0.1.0.0"
@@ -80,6 +90,16 @@
   (major1) == 2 && (major2) <  1 || \
   (major1) == 2 && (major2) == 1 && (minor) <= 3)
 #endif /* MIN_VERSION_text */
+/* package yaml-0.11.11.2 */
+#ifndef VERSION_yaml
+#define VERSION_yaml "0.11.11.2"
+#endif /* VERSION_yaml */
+#ifndef MIN_VERSION_yaml
+#define MIN_VERSION_yaml(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  11 || \
+  (major1) == 0 && (major2) == 11 && (minor) <= 11)
+#endif /* MIN_VERSION_yaml */
 
 /* tool gcc-20.1.7 */
 #ifndef TOOL_VERSION_gcc

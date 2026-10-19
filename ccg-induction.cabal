@@ -34,6 +34,7 @@ library
       Lexicon.Initialization
       Lexicon.Candidate
       Lexicon.CandidateLexicon
+      Lexicon.PosMapping
       Lexicon.Repair
       Lexicon.Compression
       Parser.Config
@@ -45,6 +46,7 @@ library
       Serialization.Grammar
       Serialization.Lexicon
       Serialization.Derivation
+      Serialization.CandidateLexicon
       CLI
   build-depends:
       base >=4.18 && <5,
@@ -75,15 +77,17 @@ test-suite ccg-induction-test
   type: exitcode-stdio-1.0
   hs-source-dirs: test
   main-is: Main.hs
-  other-modules: CategorySpec CandidateLexiconSpec CombinatorSpec ParserSpec RepairSpec CompressionSpec InductionSpec PropertySpec
+  other-modules: CategorySpec CandidateLexiconSpec CombinatorSpec ParserSpec RepairSpec CompressionSpec InductionSpec PropertySpec PosMappingSpec
   build-depends:
       base,
+      bytestring,
       ccg-induction,
       containers,
       tasty,
       tasty-hunit,
       tasty-quickcheck,
-      text
+      text,
+      yaml
 
 benchmark ccg-induction-bench
   type: exitcode-stdio-1.0

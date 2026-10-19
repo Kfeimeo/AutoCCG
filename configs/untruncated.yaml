@@ -54,77 +54,179 @@ repair:
   allow_unknown_fallback: true
   unknown_fallback_max_candidates: 2147483647
 
-pos_to_categories:
-  PROPN:
-    - {category: "NP", prior_cost: 0}
-  PRON:
-    - {category: "NP", prior_cost: 0}
-  NOUN:
-    - {category: "N", prior_cost: 0}
-    - {category: "NP", prior_cost: 1}
-    - {category: "N/N", prior_cost: 2}
-  DET:
-    - {category: "NP/N", prior_cost: 0}
-  ADJ:
-    - {category: "N/N", prior_cost: 0}
-    - {category: "AP", prior_cost: 1}
-  VERB:
-    - {category: "S\\NP", prior_cost: 0}
-    - {category: "(S\\NP)/NP", prior_cost: 0}
-    - {category: "((S\\NP)/NP)/NP", prior_cost: 3}
-    - {category: "(S\\NP)/PP", prior_cost: 2}
-    - {category: "(S\\NP)/S", prior_cost: 3}
-    - {category: "(S\\NP)/(S\\NP)", prior_cost: 3}
-  ADV:
-    - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
-    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
-    - {category: "S/S", prior_cost: 1}
-    - {category: "S\\S", prior_cost: 2}
-    - {category: "(N/N)/(N/N)", prior_cost: 2}
-    - {category: "AP/AP", prior_cost: 2}
-  ADP:
-    - {category: "PP/NP", prior_cost: 1}
-    - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 0}
-    - {category: "((S\\NP)/(S\\NP))/NP", prior_cost: 2}
-    - {category: "(N\\N)/NP", prior_cost: 1}
-  AUX:
-    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
-    - {category: "(S\\NP)/AP", prior_cost: 1}
-    - {category: "(S\\NP)/NP", prior_cost: 1}
-  CCONJ:
-    - {category: "(N\\N)/N", prior_cost: 0}
-    - {category: "(NP\\NP)/NP", prior_cost: 0}
-    - {category: "(S\\S)/S", prior_cost: 1}
-    - {category: "((S\\NP)\\(S\\NP))/(S\\NP)", prior_cost: 1}
-  SCONJ:
-    - {category: "S/S", prior_cost: 1}
-    - {category: "(S/S)/S", prior_cost: 2}
-    - {category: "(S\\S)/S", prior_cost: 2}
-  NUM:
-    - {category: "N/N", prior_cost: 0}
-    - {category: "NP", prior_cost: 1}
-  PUNCT:
-    - {category: "S\\S", prior_cost: 0}
-    - {category: "(S\\S)/S", prior_cost: 2}
-    - {category: "NP\\NP", prior_cost: 2}
-    - {category: "N\\N", prior_cost: 3}
-  PUNCT_COMMA:
-    - {category: "S\\S", prior_cost: 0}
-    - {category: "(S\\S)/S", prior_cost: 2}
-    - {category: "NP\\NP", prior_cost: 2}
-    - {category: "N\\N", prior_cost: 3}
-  PUNCT_FINAL:
-    - {category: "S\\S", prior_cost: 0}
-  CD:
-    - {category: "N/N", prior_cost: 0}
-    - {category: "NP", prior_cost: 1}
-  ",":
-    - {category: "S\\S", prior_cost: 0}
-    - {category: "(S\\S)/S", prior_cost: 2}
-    - {category: "NP\\NP", prior_cost: 2}
-    - {category: "N\\N", prior_cost: 3}
-  ".":
-    - {category: "S\\S", prior_cost: 0}
+# POS -> CCG prior candidates, organised like lightblue's lexicon set-up:
+# a library of named category templates (cf. lightblue Templates.hs) selected
+# by an ordered rule cascade over POS tags (cf. lightblue jumanPos2Cat).
+#
+# - Rules are tried top to bottom; the FIRST matching rule wins, so specific
+#   rules (tag NNP) must precede broader ones (prefix NN).
+# - A rule matches with exactly one of `tag`, `tags`, or `prefix`, and yields
+#   its named `templates` (in order) followed by inline `categories`.
+# - Fine-grained Penn Treebank tags (NLTK pos_tag) play the role of JUMAN's
+#   POS/conjugation subtypes: verb forms, comparatives, possessives, and
+#   punctuation classes select different template combinations.
+# - seed_lexicon below is the closed-class word lexicon (cf. lightblue
+#   MyLexicon). Seed candidates are merged with POS candidates; prior cost,
+#   not source, decides their order.
+# - Candidates are priors only: the parser sees a category after initial
+#   activation or validated repair.
+pos_mapping:
+  templates:
+    proper_noun:
+      - {category: "NP", prior_cost: 0}
+    pronoun:
+      - {category: "NP", prior_cost: 0}
+    common_noun:
+      - {category: "N", prior_cost: 0}
+      - {category: "NP", prior_cost: 1}
+      - {category: "N/N", prior_cost: 2}
+    determiner:
+      - {category: "NP/N", prior_cost: 0}
+    # Demonstratives and quantifiers used without a noun ("this", "all").
+    determiner_pronoun:
+      - {category: "NP", prior_cost: 2}
+    possessive_determiner:
+      - {category: "NP/N", prior_cost: 0}
+    predeterminer:
+      - {category: "NP/NP", prior_cost: 0}
+    possessive_marker:
+      - {category: "(NP/N)\\NP", prior_cost: 0}
+    # Subject and object relatives; object relatives need Type-raising plus
+    # Composition to form S/NP.
+    relativizer:
+      - {category: "(N\\N)/(S\\NP)", prior_cost: 0}
+      - {category: "(N\\N)/(S/NP)", prior_cost: 1}
+    wh_adverb:
+      - {category: "(S/S)/S", prior_cost: 1}
+      - {category: "(S\\S)/S", prior_cost: 1}
+      - {category: "(N\\N)/S", prior_cost: 2}
+    adjective:
+      - {category: "N/N", prior_cost: 0}
+      - {category: "AP", prior_cost: 1}
+    adverb:
+      - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+      - {category: "S/S", prior_cost: 1}
+      - {category: "S\\S", prior_cost: 2}
+      - {category: "(N/N)/(N/N)", prior_cost: 2}
+      - {category: "AP/AP", prior_cost: 2}
+    particle:
+      - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+    preposition:
+      - {category: "PP/NP", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 0}
+      - {category: "((S\\NP)/(S\\NP))/NP", prior_cost: 2}
+      - {category: "(N\\N)/NP", prior_cost: 1}
+    subordinator:
+      - {category: "S/S", prior_cost: 1}
+      - {category: "(S/S)/S", prior_cost: 2}
+      - {category: "(S\\S)/S", prior_cost: 2}
+    infinitival_to:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+      - {category: "PP/NP", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 1}
+    modal:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+    auxiliary:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+      - {category: "(S\\NP)/AP", prior_cost: 1}
+      - {category: "(S\\NP)/NP", prior_cost: 1}
+    # Bounded subcategorization frames shared by every verb form.
+    verb:
+      - {category: "S\\NP", prior_cost: 0}
+      - {category: "(S\\NP)/NP", prior_cost: 0}
+      - {category: "((S\\NP)/NP)/NP", prior_cost: 3}
+      - {category: "(S\\NP)/PP", prior_cost: 2}
+      - {category: "(S\\NP)/S", prior_cost: 3}
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 3}
+    # Adjectival use of -ing and -en participles ("the running man").
+    participle_modifier:
+      - {category: "N/N", prior_cost: 2}
+    coordinator:
+      - {category: "(N\\N)/N", prior_cost: 0}
+      - {category: "(NP\\NP)/NP", prior_cost: 0}
+      - {category: "(S\\S)/S", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/(S\\NP)", prior_cost: 1}
+    number:
+      - {category: "N/N", prior_cost: 0}
+      - {category: "NP", prior_cost: 1}
+    interjection:
+      - {category: "S/S", prior_cost: 0}
+      - {category: "S", prior_cost: 1}
+    # CCGbank keeps punctuation as punctuation leaves and combines it with
+    # absorption/type-change rules.  Until those rules exist here, these are
+    # bounded lexicalized approximations for Application parsing.
+    comma:
+      - {category: "S\\S", prior_cost: 0}
+      - {category: "(S\\S)/S", prior_cost: 2}
+      - {category: "NP\\NP", prior_cost: 2}
+      - {category: "N\\N", prior_cost: 3}
+    final_punctuation:
+      - {category: "S\\S", prior_cost: 0}
+    colon:
+      - {category: "S\\S", prior_cost: 0}
+      - {category: "(S\\S)/S", prior_cost: 1}
+    opening_bracket:
+      - {category: "S/S", prior_cost: 0}
+      - {category: "NP/NP", prior_cost: 1}
+    closing_bracket:
+      - {category: "S\\S", prior_cost: 0}
+      - {category: "NP\\NP", prior_cost: 1}
+
+  rules:
+    # ---- Penn Treebank (NLTK pos_tag, CCGbank) ----
+    - {tags: ["NNP", "NNPS"], templates: [proper_noun]}
+    - {prefix: "NN", templates: [common_noun]}                # NN, NNS
+    - {tags: ["PRP", "EX"], templates: [pronoun]}
+    - {tags: ["PRP$", "WP$"], templates: [possessive_determiner]}
+    - {tag: "DT", templates: [determiner, determiner_pronoun]}
+    - {tag: "PDT", templates: [predeterminer]}
+    - {tag: "WDT", templates: [relativizer], categories: [{category: "NP/N", prior_cost: 2}]}
+    - {tag: "WP", templates: [pronoun, relativizer]}
+    - {tag: "WRB", templates: [wh_adverb]}
+    - {tag: "POS", templates: [possessive_marker]}
+    - {tag: "JJR", templates: [adjective], categories: [{category: "AP/PP", prior_cost: 2}]}
+    - {prefix: "JJ", templates: [adjective]}                  # JJ, JJS
+    - {prefix: "RB", templates: [adverb]}                     # RB, RBR, RBS
+    - {tag: "RP", templates: [particle]}
+    # PTB IN conflates prepositions and subordinating conjunctions.
+    - tag: "IN"
+      templates: [preposition]
+      categories:
+        - {category: "(S/S)/S", prior_cost: 2}
+        - {category: "(S\\S)/S", prior_cost: 2}
+    - {tag: "TO", templates: [infinitival_to]}
+    - {tag: "MD", templates: [modal]}
+    - {tags: ["VB", "VBD", "VBP", "VBZ"], templates: [verb]}
+    - {tag: "VBG", templates: [verb, participle_modifier], categories: [{category: "NP", prior_cost: 3}]}
+    - {tag: "VBN", templates: [verb, participle_modifier]}
+    - {tag: "CC", templates: [coordinator]}
+    - {tag: "CD", templates: [number]}
+    - {tag: "UH", templates: [interjection]}
+    - {tag: "FW", templates: [common_noun]}
+    - {tag: ",", templates: [comma]}
+    - {tag: ".", templates: [final_punctuation]}
+    - {tag: ":", templates: [colon]}
+    - {tags: ["``", "(", "-LRB-"], templates: [opening_bracket]}
+    - {tags: ["''", ")", "-RRB-"], templates: [closing_bracket]}
+
+    # ---- Universal POS (spaCy / Stanza) ----
+    - {tag: "PROPN", templates: [proper_noun]}
+    - {tag: "PRON", templates: [pronoun]}
+    - {tag: "NOUN", templates: [common_noun]}
+    - {tag: "DET", templates: [determiner]}
+    - {tag: "ADJ", templates: [adjective]}
+    - {tag: "VERB", templates: [verb]}
+    - {tag: "ADV", templates: [adverb]}
+    - {tag: "ADP", templates: [preposition]}
+    - {tag: "AUX", templates: [auxiliary]}
+    - {tag: "CCONJ", templates: [coordinator]}
+    - {tag: "SCONJ", templates: [subordinator]}
+    - {tag: "NUM", templates: [number]}
+    - {tag: "INTJ", templates: [interjection]}
+    # UPOS PUNCT is refined to PUNCT_COMMA / PUNCT_FINAL by token shape first.
+    - {tags: ["PUNCT", "PUNCT_COMMA"], templates: [comma]}
+    - {tag: "PUNCT_FINAL", templates: [final_punctuation]}
 
 seed_lexicon:
   the:
@@ -155,6 +257,23 @@ seed_lexicon:
     - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
     - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
   be:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  am:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  been:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  has:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  have:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  had:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  do:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  does:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  did:
     - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
   ",":
     - {category: "S\\S", prior_cost: 0, lock: true}

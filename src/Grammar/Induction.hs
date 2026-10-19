@@ -145,7 +145,7 @@ trainCorpusWithObserver requestedJobs observe config candidates baseGrammar corp
     advance index sentence candidate =
       let initialized
             | candidateConstraintsEnabled (candidateConstraints config) = candidateGrammar candidate
-            | otherwise = initializeSentenceWords sentence (candidateGrammar candidate)
+            | otherwise = initializeSentenceWords (posMapping config) sentence (candidateGrammar candidate)
        in case parseWith initialized sentence of
             Parsed success -> ([accepted index candidate initialized success 0], zeroRepairStats)
             Failed failure ->
@@ -231,7 +231,7 @@ configuredCandidates config corpus grammar = do
     then Right (configuredGrammar, emptyCandidateLexicon)
     else do
       (atoms', store, candidates) <- buildCandidateLexiconFromConfig
-        config corpus atoms (grammarCategories configuredGrammar)
+        config emptyWordNetInventory corpus atoms (grammarCategories configuredGrammar)
       Right (configuredGrammar { grammarAtoms = atoms', grammarCategories = store }, candidates)
 
 emptyMetric :: RepairStats -> Int -> Sentence -> Maybe Grammar -> Maybe Int -> TrainingMetric

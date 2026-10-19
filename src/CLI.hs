@@ -31,6 +31,7 @@ import Options.Applicative
 import Parser.Config
 import Parser.Incremental
 import Parser.FailureFrontier (farthestPosition)
+import Serialization.CandidateLexicon (saveCandidateLexicon)
 import Serialization.Derivation (derivationSummary)
 import Serialization.Grammar (loadGrammar, saveGrammar)
 import Serialization.Lexicon (saveLexicon)
@@ -46,6 +47,7 @@ data Command
   | Parse FilePath Text
   | InspectLexicon FilePath Text
   | InspectCandidates FilePath Text
+  | BuildCandidates FilePath FilePath (Maybe FilePath) FilePath
 
 mainCLI :: IO ()
 mainCLI = execParser options >>= runCommand
@@ -58,6 +60,7 @@ commandParser = hsubparser
  <> command "parse" (info parseParser (progDesc "Parse a tokenized sentence"))
  <> command "inspect-lexicon" (info inspectParser (progDesc "Inspect categories for a word"))
  <> command "inspect-candidates" (info inspectCandidatesParser (progDesc "Inspect prior candidates for a word"))
+ <> command "build-candidates" (info buildCandidatesParser (progDesc "Build a candidate lexicon JSON from corpus POS, the configured POS mapping, WordNet, and seeds"))
   )
   where
     file name helpText = strOption (long name <> metavar "FILE" <> help helpText)
@@ -71,6 +74,9 @@ commandParser = hsubparser
     inspectParser = InspectLexicon <$> file "grammar" "Grammar JSON" <*> option (Text.pack <$> str) (long "word" <> metavar "WORD")
     inspectCandidatesParser = InspectCandidates <$> file "candidate-lexicon" "Candidate lexicon JSON"
       <*> option (Text.pack <$> str) (long "word" <> metavar "WORD")
+    buildCandidatesParser = BuildCandidates <$> file "corpus" "Input JSONL" <*> file "config" "YAML configuration"
+      <*> optional (file "wordnet" "WordNet lemma/POS inventory JSON (overrides candidate_constraints.wordnet_inventory_path)")
+      <*> strOption (long "output" <> metavar "FILE")
 
 runCommand :: Command -> IO ()
 runCommand selectedCommand = case selectedCommand of
@@ -133,8 +139,29 @@ runCommand selectedCommand = case selectedCommand of
     Text.putStrLn word
     traverse_ (printCandidate grammar) (candidateCategoriesForWord word candidates)
 
+  BuildCandidates corpusPath configPath commandWordNetPath output -> do
+    config <- requireConfig configPath
+    corpus <- requireCorpus corpusPath
+    inventory <- requireWordNetInventory config commandWordNetPath
+    configuredAtoms <- either (die . Text.unpack) pure
+      (configuredAtomTable config (grammarAtoms emptyGrammar))
+    (atoms, store, candidates) <- either (die . Text.unpack) pure
+      (buildCandidateLexiconFromConfig config inventory corpus configuredAtoms (grammarCategories emptyGrammar))
+    saveCandidateLexicon output atoms store candidates >>= either (die . Text.unpack) pure
+    Text.putStrLn ("wrote " <> Text.pack (show (candidateWordCount (candidateLexiconStats candidates)))
+      <> " candidate entries to " <> Text.pack output)
+
 requireConfig :: FilePath -> IO Config
 requireConfig path = loadConfig path >>= either die pure
+
+-- | The inventory is read only when WordNet fallback is enabled; a command-line
+-- path takes precedence over the configured one.
+requireWordNetInventory :: Config -> Maybe FilePath -> IO WordNetInventory
+requireWordNetInventory config commandPath
+  | not (useWordNetInventory (candidateConstraints config)) = pure emptyWordNetInventory
+  | otherwise = case commandPath <|> wordNetInventoryPath (candidateConstraints config) of
+      Nothing -> pure emptyWordNetInventory
+      Just path -> loadWordNetInventory path >>= either (die . Text.unpack) pure
 
 requireCorpus :: FilePath -> IO [Sentence]
 requireCorpus path = readJsonl path >>= either (die . Text.unpack) pure
@@ -151,10 +178,12 @@ prepareCandidateLayer config corpus selectedPath = do
     then pure (configuredGrammar, emptyCandidateLexicon)
     else case selectedPath of
       Just path -> loadCandidates config path
-      Nothing -> case buildCandidateLexiconFromConfig config corpus configuredAtoms (grammarCategories configuredGrammar) of
-        Left message -> die (Text.unpack message)
-        Right (atoms, store, candidates) -> pure
-          (configuredGrammar { grammarAtoms = atoms, grammarCategories = store }, candidates)
+      Nothing -> do
+        inventory <- requireWordNetInventory config Nothing
+        case buildCandidateLexiconFromConfig config inventory corpus configuredAtoms (grammarCategories configuredGrammar) of
+          Left message -> die (Text.unpack message)
+          Right (atoms, store, candidates) -> pure
+            (configuredGrammar { grammarAtoms = atoms, grammarCategories = store }, candidates)
 
 loadCandidates :: Config -> FilePath -> IO (Grammar, CandidateLexicon)
 loadCandidates config path = do

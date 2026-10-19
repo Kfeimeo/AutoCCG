@@ -60,7 +60,7 @@ experimentation rather than a finished CCGbank-scale learner.
 |   +-- Grammar/            # grammar types, costs, beam, induction loop
 |   +-- Lexicon/            # initialization, repair, compression
 |   +-- Parser/             # config, states, beam parser, failures, counts
-|   +-- Serialization/      # grammar, lexicon, derivation formats
+|   +-- Serialization/      # grammar, lexicon, candidate lexicon, derivation formats
 |   +-- CLI.hs              # command-line interface
 +-- test/                   # unit and property tests
 +-- bench/                  # Criterion benchmarks
@@ -155,6 +155,17 @@ Inspect prior candidates without activating them in the parser:
 cabal run ccg-induction -- inspect-candidates \
   --candidate-lexicon examples/toy-candidates.json \
   --word likes
+```
+
+Build a candidate lexicon JSON from corpus POS, the configured `pos_mapping`,
+an optional WordNet inventory, and seeds:
+
+```bash
+cabal run ccg-induction -- build-candidates \
+  --corpus data/processed/train-pos.jsonl \
+  --config configs/default.yaml \
+  --wordnet data/processed/wordnet_inventory.json \
+  --output data/processed/candidate_lexicon.json
 ```
 
 ## Input Format
@@ -370,6 +381,58 @@ Penn Treebank `CD`, Universal POS `NUM`/`PUNCT`, and untagged numeric or common
 punctuation token shapes are supported without treating the shape fallback as
 a general POS tagger.
 
+### POS-to-category mapping
+
+POS evidence is mapped to prior categories by `pos_mapping`, organised after
+the lexicon set-up of [lightblue](https://github.com/DaisukeBekki/lightblue):
+
+| lightblue | here |
+|---|---|
+| `Templates.hs` category constructors | `pos_mapping.templates`: named lists of categories with prior costs |
+| `jumanPos2Cat` guard cascade over JUMAN POS/subPOS/conjugation type | `pos_mapping.rules`: ordered rules over POS tags; the first match wins |
+| `MyLexicon.hs` hand-written function-word lexicon | `seed_lexicon`: merged with POS candidates and ranked by prior cost |
+| JUMAN++ morphological analysis | NLTK `pos_tag` Penn Treebank tags (or spaCy/Stanza UPOS) |
+
+```yaml
+pos_mapping:
+  templates:
+    proper_noun: [{category: "NP", prior_cost: 0}]
+    common_noun:
+      - {category: "N", prior_cost: 0}
+      - {category: "NP", prior_cost: 1}
+    verb:
+      - {category: "S\\NP", prior_cost: 0}
+      - {category: "(S\\NP)/NP", prior_cost: 0}
+    participle_modifier: [{category: "N/N", prior_cost: 2}]
+  rules:
+    - {tags: ["NNP", "NNPS"], templates: [proper_noun]}   # before prefix NN
+    - {prefix: "NN", templates: [common_noun]}
+    - {tags: ["VB", "VBD", "VBP", "VBZ"], templates: [verb]}
+    - {tag: "VBG", templates: [verb, participle_modifier],
+       categories: [{category: "NP", prior_cost: 3}]}
+```
+
+Each rule matches with exactly one of `tag`, `tags`, or `prefix` and yields
+its named `templates` in order, followed by inline `categories`. Undefined
+template names and ambiguous matchers are rejected when the configuration is
+loaded. Quote tags and categories in YAML: a bare `N` is read as a boolean.
+Fine-grained Penn Treebank tags act like JUMAN's conjugation subtypes: verb
+forms, comparatives, possessives, and punctuation classes select different
+template combinations. The default configuration covers the Penn Treebank
+tagset produced by NLTK and the Universal POS tags produced by spaCy and
+Stanza. The flat `pos_to_categories: {TAG: [...]}` table is still accepted as
+shorthand for exact-tag rules tried after `pos_mapping.rules`.
+
+Per token, the tag driving the cascade is the corpus POS (UPOS `PUNCT` is
+refined by token shape). Without POS, a closed-form token shape is used.
+Otherwise, when `use_wordnet_inventory` is enabled and an inventory is given by
+`candidate_constraints.wordnet_inventory_path` or `--wordnet`, every WordNet
+POS of the lemma is used. Unlike lightblue, categories carry no morphological
+features (`S[dcl]`, `NP[nom]`): the atom inventory is featureless, so verb
+form only changes which bounded templates are proposed. When candidate
+constraints are disabled, legacy initialization assigns the lowest-prior
+category of the matching rule.
+
 When constraints are disabled, the legacy bounded-universe repair path remains
 available for regression and performance comparisons. When enabled, unknown
 fallback uses only a small fixed template inventory and never enumerates the
@@ -398,19 +461,30 @@ Python tooling should prepare data and aggregate experiments. It must not
 duplicate the Haskell parser, grammar beam, lexical repair search, or induction
 algorithm.
 
-WordNet, spaCy, and Stanza are explicit optional dependencies. The repository
+NLTK, WordNet, spaCy, and Stanza are explicit optional dependencies. The repository
 does not auto-download NLP packages, corpora, or model files during preprocessing,
 so install the pieces you want to use before running the scripts:
 
 ```bash
 python -m pip install nltk spacy stanza pyyaml
 python -m spacy download en_core_web_sm
-python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
+python -c "import nltk; nltk.download('averaged_perceptron_tagger_eng'); nltk.download('wordnet'); nltk.download('omw-1.4')"
 python -c "import stanza; stanza.download('en')"
 ```
 
 For POS/lemma enrichment, start from a pretokenized JSONL corpus whose records
-already contain `tokens`. Choose either spaCy:
+already contain `tokens`. The default backend is NLTK's averaged-perceptron
+tagger, which writes Penn Treebank tags for the `pos_mapping` cascade and
+WordNet lemmas:
+
+```bash
+python python_tools/enrich_with_pos.py \
+  --input data/processed/train.jsonl \
+  --output data/processed/train-pos.jsonl \
+  --backend nltk
+```
+
+Alternatively, use spaCy:
 
 ```bash
 python python_tools/enrich_with_pos.py \
@@ -431,7 +505,8 @@ python python_tools/enrich_with_pos.py \
 ```
 
 The enrichment step preserves the existing tokenization and writes `lemmas`,
-Universal POS tags in `pos`, and `morph`. If the tagger changes token alignment,
+`pos` (Penn Treebank tags for NLTK, Universal POS for spaCy/Stanza), and
+`morph` (empty for NLTK). If the tagger changes token alignment,
 the script fails instead of silently rewriting the sentence.
 
 Build an optional WordNet lemma/POS inventory. NLTK and WordNet data are still
@@ -445,10 +520,11 @@ python python_tools/build_wordnet_inventory.py \
 ```
 
 Build the deterministic JSON candidate layer from corpus POS, WordNet fallback,
-POS templates, and seeds:
+the `pos_mapping` cascade, and seeds. The mapping is applied in Haskell, so the
+candidate file and on-the-fly training use the same code path:
 
 ```bash
-python python_tools/build_candidate_lexicon.py \
+cabal run ccg-induction -- build-candidates \
   --corpus data/processed/train-pos.jsonl \
   --wordnet data/processed/wordnet_inventory.json \
   --config configs/default.yaml \
