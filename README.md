@@ -81,6 +81,11 @@ The current Cabal file uses `GHC2024`.
 
 ## Build
 
+Commands are shown for bash (Linux/macOS). Single-line commands run
+unchanged in Windows PowerShell. Each multi-line command is followed by a
+PowerShell equivalent, which continues lines with a backtick (`` ` ``)
+instead of `\`.
+
 ```bash
 cabal build all
 ```
@@ -112,6 +117,17 @@ cabal run ccg-induction -- train \
   --jobs 4
 ```
 
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- train `
+  --corpus examples/toy.jsonl `
+  --config configs/toy.yaml `
+  --candidate-lexicon examples/toy-candidates.json `
+  --output runs/toy `
+  --jobs 4
+```
+
 Evaluate a frozen grammar:
 
 ```bash
@@ -119,6 +135,16 @@ cabal run ccg-induction -- evaluate \
   --corpus examples/toy-test.jsonl \
   --grammar runs/toy/grammar.json \
   --output runs/toy/eval \
+  --jobs 4
+```
+
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- evaluate `
+  --corpus examples/toy-test.jsonl `
+  --grammar runs/toy/grammar.json `
+  --output runs/toy/eval `
   --jobs 4
 ```
 
@@ -141,11 +167,27 @@ cabal run ccg-induction -- parse \
   --sentence "John likes Mary"
 ```
 
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- parse `
+  --grammar runs/toy/grammar.json `
+  --sentence "John likes Mary"
+```
+
 Inspect categories assigned to one word type:
 
 ```bash
 cabal run ccg-induction -- inspect-lexicon \
   --grammar runs/toy/grammar.json \
+  --word "likes"
+```
+
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- inspect-lexicon `
+  --grammar runs/toy/grammar.json `
   --word "likes"
 ```
 
@@ -157,6 +199,14 @@ cabal run ccg-induction -- inspect-candidates \
   --word likes
 ```
 
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- inspect-candidates `
+  --candidate-lexicon examples/toy-candidates.json `
+  --word likes
+```
+
 Build a candidate lexicon JSON from corpus POS, the configured `pos_mapping`,
 an optional WordNet inventory, and seeds:
 
@@ -165,6 +215,16 @@ cabal run ccg-induction -- build-candidates \
   --corpus data/processed/train-pos.jsonl \
   --config configs/default.yaml \
   --wordnet data/processed/wordnet_inventory.json \
+  --output data/processed/candidate_lexicon.json
+```
+
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- build-candidates `
+  --corpus data/processed/train-pos.jsonl `
+  --config configs/default.yaml `
+  --wordnet data/processed/wordnet_inventory.json `
   --output data/processed/candidate_lexicon.json
 ```
 
@@ -539,6 +599,15 @@ python python_tools/enrich_with_pos.py \
   --backend nltk
 ```
 
+PowerShell equivalent:
+
+```powershell
+python python_tools/enrich_with_pos.py `
+  --input data/processed/train.jsonl `
+  --output data/processed/train-pos.jsonl `
+  --backend nltk
+```
+
 Alternatively, use spaCy:
 
 ```bash
@@ -549,6 +618,16 @@ python python_tools/enrich_with_pos.py \
   --model en_core_web_sm
 ```
 
+PowerShell equivalent:
+
+```powershell
+python python_tools/enrich_with_pos.py `
+  --input data/processed/train.jsonl `
+  --output data/processed/train-pos.jsonl `
+  --backend spacy `
+  --model en_core_web_sm
+```
+
 or Stanza:
 
 ```bash
@@ -556,6 +635,16 @@ python python_tools/enrich_with_pos.py \
   --input data/processed/train.jsonl \
   --output data/processed/train-pos.jsonl \
   --backend stanza \
+  --model en
+```
+
+PowerShell equivalent:
+
+```powershell
+python python_tools/enrich_with_pos.py `
+  --input data/processed/train.jsonl `
+  --output data/processed/train-pos.jsonl `
+  --backend stanza `
   --model en
 ```
 
@@ -574,6 +663,14 @@ python python_tools/build_wordnet_inventory.py \
   --output data/processed/wordnet_inventory.json
 ```
 
+PowerShell equivalent:
+
+```powershell
+python python_tools/build_wordnet_inventory.py `
+  --corpus data/processed/train-pos.jsonl `
+  --output data/processed/wordnet_inventory.json
+```
+
 Build the deterministic JSON candidate layer from corpus POS, WordNet fallback,
 the `pos_mapping` cascade, and seeds. The mapping is applied in Haskell, so the
 candidate file and on-the-fly training use the same code path:
@@ -583,6 +680,16 @@ cabal run ccg-induction -- build-candidates \
   --corpus data/processed/train-pos.jsonl \
   --wordnet data/processed/wordnet_inventory.json \
   --config configs/default.yaml \
+  --output data/processed/candidate_lexicon.json
+```
+
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- build-candidates `
+  --corpus data/processed/train-pos.jsonl `
+  --wordnet data/processed/wordnet_inventory.json `
+  --config configs/default.yaml `
   --output data/processed/candidate_lexicon.json
 ```
 
@@ -603,6 +710,16 @@ cabal run ccg-induction -- train \
   --output runs/experiment-1
 ```
 
+PowerShell equivalent:
+
+```powershell
+cabal run ccg-induction -- train `
+  --corpus data/processed/train-pos.jsonl `
+  --config configs/default.yaml `
+  --candidate-lexicon data/processed/candidate_lexicon.json `
+  --output runs/experiment-1
+```
+
 Python never assigns accepted CCG categories and does not implement repair or
 parsing. Those decisions remain in Haskell.
 
@@ -611,6 +728,14 @@ Other expected auxiliary commands include:
 ```bash
 python python_tools/preprocess_conllu.py \
   --input data/input.conllu \
+  --output data/output.jsonl
+```
+
+PowerShell equivalent:
+
+```powershell
+python python_tools/preprocess_conllu.py `
+  --input data/input.conllu `
   --output data/output.jsonl
 ```
 
@@ -629,6 +754,18 @@ python python_tools/download_corpora.py tinystories \
   --output data/processed/tinystories-validation.jsonl
 ```
 
+PowerShell equivalent:
+
+```powershell
+python python_tools/download_corpora.py wikitext2 `
+  --split train --max-sentences 1000 --max-tokens 20 `
+  --output data/processed/wikitext2-train.jsonl
+
+python python_tools/download_corpora.py tinystories `
+  --split validation --max-sentences 1000 --max-tokens 20 `
+  --output data/processed/tinystories-validation.jsonl
+```
+
 TinyStories train is a multi-gigabyte download; start with validation for a
 smoke experiment. Existing downloads are reused. Run induction and aggregate
 the non-gold discovery diagnostics:
@@ -641,22 +778,22 @@ python python_tools/run_discovery_experiment.py \
   --jobs 8
 ```
 
+PowerShell equivalent:
+
+```powershell
+python python_tools/run_discovery_experiment.py `
+  --corpus data/processed/wikitext2-train.jsonl `
+  --config configs/corpus-smoke.yaml `
+  --output runs/wikitext2-smoke `
+  --jobs 8
+```
+
 The discovery script has no third-party Python package dependency: it uses only
 the Python standard library, `cabal`, and this Haskell project. It defaults to
 at most eight logical CPU workers. Most runtime is the Haskell induction
 subprocess, especially bounded repair parsing; report aggregation is linear in
 the corpus and lexicon size. Use `--skip-train` to regenerate reports from an
 existing completed run without training again.
-
-PowerShell equivalent:
-
-```powershell
-python .\python_tools\run_discovery_experiment.py `
-  --corpus .\data\processed\wikitext2-train.jsonl `
-  --config .\configs\corpus-smoke.yaml `
-  --output .\runs\wikitext2-smoke `
-  --jobs 8
-```
 
 In addition to the normal training artifacts, this writes
 `discovery_summary.json` and `lexicon_observations.csv`. The summary includes
@@ -690,6 +827,16 @@ cabal build all
 cabal test all
 cabal run ccg-induction -- parse \
   --grammar examples/toy-grammar.json \
+  --sentence "John likes Mary"
+```
+
+PowerShell equivalent:
+
+```powershell
+cabal build all
+cabal test all
+cabal run ccg-induction -- parse `
+  --grammar examples/toy-grammar.json `
   --sentence "John likes Mary"
 ```
 

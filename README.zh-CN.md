@@ -75,6 +75,9 @@ Python 仅用于语料准备、格式转换、实验聚合和绘图。
 
 ## 构建
 
+命令以 bash（Linux/macOS）形式给出。单行命令可在 Windows PowerShell 中原样运行；
+每条多行命令后面都附有 PowerShell 等价命令，续行符用反引号（`` ` ``）代替 `\`。
+
 ```bash
 cabal build all
 ```
@@ -106,6 +109,17 @@ cabal run ccg-induction -- train \
   --jobs 4
 ```
 
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- train `
+  --corpus examples/toy.jsonl `
+  --config configs/toy.yaml `
+  --candidate-lexicon examples/toy-candidates.json `
+  --output runs/toy `
+  --jobs 4
+```
+
 评估冻结语法：
 
 ```bash
@@ -113,6 +127,16 @@ cabal run ccg-induction -- evaluate \
   --corpus examples/toy-test.jsonl \
   --grammar runs/toy/grammar.json \
   --output runs/toy/eval \
+  --jobs 4
+```
+
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- evaluate `
+  --corpus examples/toy-test.jsonl `
+  --grammar runs/toy/grammar.json `
+  --output runs/toy/eval `
   --jobs 4
 ```
 
@@ -130,11 +154,27 @@ cabal run ccg-induction -- parse \
   --sentence "John likes Mary"
 ```
 
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- parse `
+  --grammar runs/toy/grammar.json `
+  --sentence "John likes Mary"
+```
+
 检查某个词类型被分配的范畴：
 
 ```bash
 cabal run ccg-induction -- inspect-lexicon \
   --grammar runs/toy/grammar.json \
+  --word "likes"
+```
+
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- inspect-lexicon `
+  --grammar runs/toy/grammar.json `
   --word "likes"
 ```
 
@@ -146,6 +186,14 @@ cabal run ccg-induction -- inspect-candidates \
   --word likes
 ```
 
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- inspect-candidates `
+  --candidate-lexicon examples/toy-candidates.json `
+  --word likes
+```
+
 基于语料 POS、配置中的 `pos_mapping`、可选的 WordNet 清单和 seed 构建候选词典 JSON：
 
 ```bash
@@ -153,6 +201,16 @@ cabal run ccg-induction -- build-candidates \
   --corpus data/processed/train-pos.jsonl \
   --config configs/default.yaml \
   --wordnet data/processed/wordnet_inventory.json \
+  --output data/processed/candidate_lexicon.json
+```
+
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- build-candidates `
+  --corpus data/processed/train-pos.jsonl `
+  --config configs/default.yaml `
+  --wordnet data/processed/wordnet_inventory.json `
   --output data/processed/candidate_lexicon.json
 ```
 
@@ -465,6 +523,15 @@ python python_tools/enrich_with_pos.py \
   --backend nltk
 ```
 
+PowerShell 等价命令：
+
+```powershell
+python python_tools/enrich_with_pos.py `
+  --input data/processed/train.jsonl `
+  --output data/processed/train-pos.jsonl `
+  --backend nltk
+```
+
 也可以选择 spaCy：
 
 ```bash
@@ -475,6 +542,16 @@ python python_tools/enrich_with_pos.py \
   --model en_core_web_sm
 ```
 
+PowerShell 等价命令：
+
+```powershell
+python python_tools/enrich_with_pos.py `
+  --input data/processed/train.jsonl `
+  --output data/processed/train-pos.jsonl `
+  --backend spacy `
+  --model en_core_web_sm
+```
+
 或选择 Stanza：
 
 ```bash
@@ -482,6 +559,16 @@ python python_tools/enrich_with_pos.py \
   --input data/processed/train.jsonl \
   --output data/processed/train-pos.jsonl \
   --backend stanza \
+  --model en
+```
+
+PowerShell 等价命令：
+
+```powershell
+python python_tools/enrich_with_pos.py `
+  --input data/processed/train.jsonl `
+  --output data/processed/train-pos.jsonl `
+  --backend stanza `
   --model en
 ```
 
@@ -497,6 +584,14 @@ python python_tools/build_wordnet_inventory.py \
   --output data/processed/wordnet_inventory.json
 ```
 
+PowerShell 等价命令：
+
+```powershell
+python python_tools/build_wordnet_inventory.py `
+  --corpus data/processed/train-pos.jsonl `
+  --output data/processed/wordnet_inventory.json
+```
+
 基于语料 POS、WordNet fallback、`pos_mapping` 级联和 seed 构建确定性的 JSON 候选层。
 映射在 Haskell 中执行，因此候选文件与训练时即时构建走同一条代码路径：
 
@@ -505,6 +600,16 @@ cabal run ccg-induction -- build-candidates \
   --corpus data/processed/train-pos.jsonl \
   --wordnet data/processed/wordnet_inventory.json \
   --config configs/default.yaml \
+  --output data/processed/candidate_lexicon.json
+```
+
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- build-candidates `
+  --corpus data/processed/train-pos.jsonl `
+  --wordnet data/processed/wordnet_inventory.json `
+  --config configs/default.yaml `
   --output data/processed/candidate_lexicon.json
 ```
 
@@ -523,6 +628,16 @@ cabal run ccg-induction -- train \
   --output runs/experiment-1
 ```
 
+PowerShell 等价命令：
+
+```powershell
+cabal run ccg-induction -- train `
+  --corpus data/processed/train-pos.jsonl `
+  --config configs/default.yaml `
+  --candidate-lexicon data/processed/candidate_lexicon.json `
+  --output runs/experiment-1
+```
+
 Python 永远不分配已接受的 CCG 范畴，也不实现修复或解析。
 这些决策保留在 Haskell 中。
 
@@ -531,6 +646,14 @@ Python 永远不分配已接受的 CCG 范畴，也不实现修复或解析。
 ```bash
 python python_tools/preprocess_conllu.py \
   --input data/input.conllu \
+  --output data/output.jsonl
+```
+
+PowerShell 等价命令：
+
+```powershell
+python python_tools/preprocess_conllu.py `
+  --input data/input.conllu `
   --output data/output.jsonl
 ```
 
@@ -548,6 +671,18 @@ python python_tools/download_corpora.py tinystories \
   --output data/processed/tinystories-validation.jsonl
 ```
 
+PowerShell 等价命令：
+
+```powershell
+python python_tools/download_corpora.py wikitext2 `
+  --split train --max-sentences 1000 --max-tokens 20 `
+  --output data/processed/wikitext2-train.jsonl
+
+python python_tools/download_corpora.py tinystories `
+  --split validation --max-sentences 1000 --max-tokens 20 `
+  --output data/processed/tinystories-validation.jsonl
+```
+
 TinyStories train 是多 GB 下载；烟雾实验建议先从 validation 开始。
 已有下载会被复用。运行归纳并聚合非 gold 的发现诊断：
 
@@ -559,20 +694,20 @@ python python_tools/run_discovery_experiment.py \
   --jobs 8
 ```
 
+PowerShell 等价命令：
+
+```powershell
+python python_tools/run_discovery_experiment.py `
+  --corpus data/processed/wikitext2-train.jsonl `
+  --config configs/corpus-smoke.yaml `
+  --output runs/wikitext2-smoke `
+  --jobs 8
+```
+
 发现脚本没有第三方 Python 包依赖：只使用 Python 标准库、`cabal` 和本 Haskell 项目。
 默认最多使用八个逻辑 CPU worker。大部分运行时间在 Haskell 归纳子进程中，
 尤其是有界修复解析；报告聚合在语料和词典大小上线性增长。
 使用 `--skip-train` 可基于已有完成运行重新生成报告，而不再次训练。
-
-PowerShell 等价命令：
-
-```powershell
-python .\python_tools\run_discovery_experiment.py `
-  --corpus .\data\processed\wikitext2-train.jsonl `
-  --config .\configs\corpus-smoke.yaml `
-  --output .\runs\wikitext2-smoke `
-  --jobs 8
-```
 
 除正常训练产物外，该脚本还会写出 `discovery_summary.json`
 和 `lexicon_observations.csv`。summary 包含原子/模板清单、每词范畴数、
@@ -603,6 +738,16 @@ cabal build all
 cabal test all
 cabal run ccg-induction -- parse \
   --grammar examples/toy-grammar.json \
+  --sentence "John likes Mary"
+```
+
+PowerShell 等价命令：
+
+```powershell
+cabal build all
+cabal test all
+cabal run ccg-induction -- parse `
+  --grammar examples/toy-grammar.json `
   --sentence "John likes Mary"
 ```
 
