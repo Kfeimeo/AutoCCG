@@ -144,5 +144,58 @@ class CandidateCliIntegrationTest(unittest.TestCase):
         self.assertNotIn(".", entries)
 
 
+ASP_GRAMMAR = {
+    "version": 1,
+    "root": "S",
+    # "f John read" needs John+read as S/NP: ASP at the Application level, or
+    # Type-raising plus Composition without it.
+    "lexicon": {"f": ["S/(S/NP)"], "John": ["NP"], "read": ["(S\\NP)/NP"]},
+}
+
+
+def parse_level(grammar_dir: Path, *extra: str) -> tuple[str, str]:
+    completed = run_cli("parse", "--grammar", str(grammar_dir / "grammar.json"), *extra, "--sentence", "f John read")
+    return json.loads(completed.stdout)["level"], completed.stderr
+
+
+class RuleConfigCliIntegrationTest(unittest.TestCase):
+    def test_parse_uses_explicit_config_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "grammar.json").write_text(json.dumps(ASP_GRAMMAR), encoding="utf-8")
+            config = root / "asp.yaml"
+            config.write_text(json.dumps({"rules": {"allow_argument_swap": True}}), encoding="utf-8")
+            level, stderr = parse_level(root)
+            self.assertEqual(level, "WithTypeRaising")
+            self.assertIn("built-in default", stderr)
+            level, stderr = parse_level(root, "--config", str(config))
+            self.assertEqual(level, "ApplicationOnly")
+            self.assertIn("asp.yaml", stderr)
+
+    def test_parse_prefers_training_config_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "grammar.json").write_text(json.dumps(ASP_GRAMMAR), encoding="utf-8")
+            (root / "config.snapshot.yaml").write_text(
+                json.dumps({"rules": {"allow_argument_swap": True}}), encoding="utf-8")
+            level, stderr = parse_level(root)
+            self.assertEqual(level, "ApplicationOnly")
+            self.assertIn("config.snapshot.yaml", stderr)
+
+    def test_inspect_candidates_uses_config_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            candidates = Path(directory) / "candidates.json"
+            candidates.write_text(json.dumps({"version": 1, "entries": [{
+                "word": "and",
+                "candidates": [{"category": "((S\\NP)\\(S\\NP))/(S\\NP)", "prior_cost": 0,
+                                "source": "FromPosTemplate", "locked": False}],
+            }]}), encoding="utf-8")
+            arguments = ["inspect-candidates", "--candidate-lexicon", str(candidates), "--word", "and"]
+            with self.assertRaises(subprocess.CalledProcessError):
+                run_cli(*arguments)  # five slashes exceed the built-in max_slashes of 4
+            completed = run_cli(*arguments[:3], "--config", "configs/default.yaml", *arguments[3:])
+            self.assertIn("((S\\NP)\\(S\\NP))/(S\\NP)", completed.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -146,6 +146,12 @@ cabal run ccg-induction -- evaluate `
 `train` 命令会显示单行进度条，包含已处理、已覆盖、未解析和每秒句子数。
 重定向输出或无人值守批处理时可传入 `--no-progress`。
 
+`evaluate` 和 `parse` 接受 `--config FILE`，用于指定解析规则和范畴上限
+（`rules`、`categories`、`parser`）。不传时，它们使用 `train` 写在语法文件旁边的
+`config.snapshot.yaml`，这样评估时用的就是训练时的规则，包括 ASP 和组合相关开关；
+两者都没有时才回退到内置默认值。实际使用的配置会打印到 stderr。`inspect-candidates`
+也接受 `--config`，用于原子和范畴上限。
+
 解析一个已分词句子：
 
 ```bash
@@ -269,6 +275,7 @@ rules:
   allow_coordination: true
   allow_period_absorption: true
   allow_punctuation_absorption: true
+  allow_argument_swap: false
 
 training:
   seed: 42
@@ -477,6 +484,24 @@ spaCy 和 Stanza 输出的 Universal POS 标签。扁平的 `pos_to_categories: 
 并通过 `candidate_constraints.wordnet_inventory_path` 或 `--wordnet` 提供了清单，
 则使用该 lemma 的所有 WordNet POS。禁用候选约束时，旧版初始化会为匹配规则分配
 先验代价最低的范畴。
+
+### 参数交换（ASP）
+
+`rules.allow_argument_swap` 开启 ASP。这是一条一元规则：当一个范畴最外两层参数
+分别位于左右两侧时，交换它们被消耗的顺序：
+
+```text
+ASP   (X\A)/B  <=>  (X/B)\A
+```
+
+`A` 仍在左边、`B` 仍在右边，因此语序和语义都不变。例如 `read := (S\NP)/NP`
+可以变成 `(S/NP)\NP`，这样 `John read` 只用逆向函数应用就得到 `S/NP`，不再需要
+类型提升和组合。ASP 在每个解析层级都可用，包括仅应用层。它作用于词汇项和推导出的
+成分，每个成分最多交换一次，并且在成分刚产生时进行。交换后的范畴必须满足深度上限
+（斜杠数和元数不会改变）。解析代价在组合次数之后统计 ASP 次数，所以代价更低的推导
+会避免不必要的交换。组合有用性过滤和右侧可达图表都考虑了 ASP，因此开启后解析器的
+完备性保证仍然成立。内置默认值和各实验配置中它是关闭的，在 `configs/default.yaml` 和
+`configs/untruncated.yaml` 中开启；所有配置文件都显式列出了这个开关。
 
 禁用约束时，旧的有界全集修复路径仍可用于回归和性能比较。
 启用约束时，unknown fallback 只使用小型固定模板清单，

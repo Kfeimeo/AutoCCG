@@ -39,6 +39,15 @@ tests = testGroup "combinators"
   , testCase "degree one disables generalized composition" $
       fixture ["X/Y", "(Y/Z)/W"] $ \[left, right] store ->
         resultFor ForwardGeneralizedComposition (fst (compositionResults 1 store left right)) @?= Nothing
+  , testCase "ASP swaps (X\\A)/B to (X/B)\\A" $
+      fixture ["(X\\A)/B", "(X/B)\\A"] $ \[original, target] store ->
+        fmap fst (argumentSwap store original) @?= Just target
+  , testCase "ASP swaps (X/B)\\A back to (X\\A)/B" $
+      fixture ["(X/B)\\A", "(X\\A)/B"] $ \[original, target] store ->
+        fmap fst (argumentSwap store original) @?= Just target
+  , testCase "ASP needs two outer arguments of opposite directions" $
+      fixture ["(X/A)/B", "(X\\A)\\B", "X/B", "X"] $ \categories store ->
+        map (fmap fst . argumentSwap store) categories @?= [Nothing, Nothing, Nothing, Nothing]
   , testCase "invalid combination" $ fixture ["NP", "NP"] $ \[left, right] store ->
       applicationResults store left right @?= []
   ]

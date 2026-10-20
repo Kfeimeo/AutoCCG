@@ -57,6 +57,8 @@ data RuleConfig = RuleConfig
   -- ^ @S PERIOD => S@.
   , allowPunctuationAbsorption :: !Bool
   -- ^ @X PUNCT => X@ for non-nominal X.
+  , allowArgumentSwap :: !Bool
+  -- ^ ASP, @(X\A)/B <=> (X/B)\A@, available at every parser level.
   } deriving (Eq, Show, Generic)
 
 data TrainingConfig = TrainingConfig
@@ -113,7 +115,7 @@ defaultConfig = Config
   (CategoryBounds 5 4 3)
   (ParserConfig 128 12 2048 8 10000)
   (GrammarConfig 16 32 2)
-  (RuleConfig True True True True False False 2 True True True)
+  (RuleConfig True True True True False False 2 True True True False)
   (TrainingConfig 42 100 "queue")
   (CandidateConstraintsConfig False Nothing True Nothing True True "small_default" 8 True)
   emptyPosMapping
@@ -145,6 +147,7 @@ instance FromJSON RuleConfig where
     <*> o .:? "allow_coordination" .!= True
     <*> o .:? "allow_period_absorption" .!= True
     <*> o .:? "allow_punctuation_absorption" .!= True
+    <*> o .:? "allow_argument_swap" .!= False
     where
       positiveDegree degree
         | degree >= 1 = pure degree

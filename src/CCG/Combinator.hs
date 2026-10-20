@@ -3,6 +3,7 @@ module CCG.Combinator
   , applyCombinator
   , applicationResults
   , compositionResults
+  , argumentSwap
   ) where
 
 import CCG.Category (CategoryId, CategoryNode (..), Slash (..))
@@ -91,6 +92,20 @@ compositionResults maxDegree initialStore left right = results
     collect (acc, store) combinator = case applyCombinator maxDegree combinator store left right of
       Nothing -> (acc, store)
       Just (categoryId, store') -> ((combinator, categoryId) : acc, store')
+
+-- | ASP, argument swap: @(X\A)/B <=> (X/B)\A@.  The two outermost arguments
+-- of opposite directions are consumed in the other order; @A@ stays on the
+-- left and @B@ on the right, so word order and meaning are unchanged.  Applying
+-- it twice gives back the original category.  The slash count and arity are
+-- preserved, but the depth may change, so callers must re-check depth bounds.
+argumentSwap :: CategoryStore -> CategoryId -> Maybe (CategoryId, CategoryStore)
+argumentSwap store categoryId = case lookupCategory categoryId store of
+  Just (Functional outerSlash inner outerArgument)
+    | Just (Functional innerSlash result innerArgument) <- lookupCategory inner store
+    , innerSlash /= outerSlash ->
+        let (swappedInner, store') = internFunctional outerSlash result outerArgument store
+         in Just (internFunctional innerSlash swappedInner innerArgument store')
+  _ -> Nothing
 
 -- | Replace the result at the base of a uniform slash spine.  Requiring at
 -- least two spine layers keeps first-order Composition represented by its

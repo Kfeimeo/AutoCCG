@@ -11,7 +11,7 @@ module Parser.Incremental
 
 import CCG.Category (CategoryId, categoryArity, categoryDepth, categorySlashCount)
 import CCG.CategoryStore (CategoryStore, lookupCategory)
-import CCG.Combinator (Combinator (..), applicationResults, compositionResults)
+import CCG.Combinator (Combinator (..), applicationResults, argumentSwap, compositionResults)
 import CCG.Derivation
   ( DerivationArena, DerivationNode (..), DerivationRef, addDerivation, emptyArena )
 import CCG.SpecialRules
@@ -110,7 +110,7 @@ runParser config level initialStore lexicon grammarRules root tokens =
       let (lexRef, arena') = addDerivation (LexicalNode position token categoryId) arena
           cost = parseCost state
           cost' = cost { derivationSteps = derivationSteps cost + 1 }
-          item = StackItem categoryId lexRef True False
+          item = StackItem categoryId lexRef True False False
           shifted = state { inputPosition = position + 1, categoryStack = item : categoryStack state, parseCost = cost' }
        in if length (categoryStack shifted) <= maxStackDepth parserConfig
             then (shifted : acc, arena')
@@ -136,7 +136,12 @@ runParser config level initialStore lexicon grammarRules root tokens =
           let (reduced, store') = reduceTop store current
            in (reduced : groups, store')
 
-    reduceTop store state = case categoryStack state of
+    reduceTop store state =
+      let (combined, store') = combineTop store state
+          (swapped, store'') = swapTop store' state
+       in (combined ++ swapped, store'')
+
+    combineTop store state = case categoryStack state of
       right : left : rest ->
         let (reductions, store') = pairReductions config level grammarRules store
               (itemCategory left, itemRaisable left) (itemCategory right, itemRaisable right)
@@ -149,6 +154,26 @@ runParser config level initialStore lexicon grammarRules root tokens =
                     [coordinated state right below result]
               _ -> []
          in (binary ++ ternary, store')
+      _ -> ([], store)
+
+    -- ASP is a unary step on the stack top.  A constituent is swapped right
+    -- after it is created, while it is on top; swapping later would make no
+    -- difference because nothing can change it before it is combined.
+    swapTop store state = case categoryStack state of
+      top : rest | allowArgumentSwap ruleConfig && not (itemSwapped top) ->
+        case swapWithinBounds config store (itemCategory top) of
+          Just (swappedCategory, store') ->
+            let cost = parseCost state
+                item = top { itemCategory = swappedCategory, itemSwapped = True }
+             in ( [ state
+                      { categoryStack = item : rest
+                      , parseCost = cost
+                          { argumentSwapUses = argumentSwapUses cost + 1
+                          , derivationSteps = derivationSteps cost + 1
+                          }
+                      } ]
+                , store' )
+          Nothing -> ([], store)
       _ -> ([], store)
 
     keepReduction store state rest reduction = case reductionRule reduction of
@@ -164,18 +189,28 @@ runParser config level initialStore lexicon grammarRules root tokens =
     -- otherwise C must already be the complete root.  'rightReachable'
     -- over-approximates the right constituents, so this test never discards a
     -- derivable state.
-    usefulComposition store state rest result = completeRoot || leftUseful || rightUseful
+    --
+    -- With ASP, C may be swapped before its first combination, so both forms
+    -- of C are tested.
+    usefulComposition store state rest result = any useful variants
       where
+        variants = (result, store) : case swapWithinBounds config store result of
+          Just swapped | allowArgumentSwap ruleConfig -> [swapped]
+          _ -> []
         position = inputPosition state
         reachable = IntMap.findWithDefault Set.empty position rightReachable
-        completeRoot = null rest && position == tokenCount && result == root
-        leftUseful = case rest of
-          left : _ -> combines (itemCategory left, itemRaisable left) (result, True)
+        useful (candidate, candidateStore) =
+          completeRoot candidate || leftUseful candidateStore candidate || rightUseful candidateStore candidate
+        completeRoot candidate = null rest && position == tokenCount && candidate == root
+        leftUseful candidateStore candidate = case rest of
+          left : _ -> combines candidateStore (itemCategory left, itemRaisable left) (candidate, True)
             || isConjunction (itemCategory left)
           [] -> False
-        rightUseful = any (\candidate -> combines (result, True) (candidate, True)) (Set.toAscList reachable)
-          || any isConjunction (Set.toAscList reachable)
-        combines left right = not (null (fst (pairReductions config level grammarRules store left right)))
+        rightUseful candidateStore candidate =
+          any (\other -> combines candidateStore (candidate, True) (other, True)) (Set.toAscList reachable)
+            || any isConjunction (Set.toAscList reachable)
+        combines candidateStore left right =
+          not (null (fst (pairReductions config level grammarRules candidateStore left right)))
         isConjunction categoryId =
           allowCoordination ruleConfig && Just categoryId == conjunctionCategory special
 
@@ -184,7 +219,7 @@ runParser config level initialStore lexicon grammarRules root tokens =
           isComposition = case reductionRule reduction of
             CombinatorRule combinator -> not (isApplication combinator)
             _ -> False
-          item = StackItem (reductionResult reduction) (itemDerivation right) (not usedTypeRaising) False
+          item = StackItem (reductionResult reduction) (itemDerivation right) (not usedTypeRaising) False False
           cost = parseCost state
           cost' = cost
             { typeRaisingUses = typeRaisingUses cost + if usedTypeRaising then 1 else 0
@@ -194,7 +229,7 @@ runParser config level initialStore lexicon grammarRules root tokens =
        in state { categoryStack = item : rest, parseCost = cost' }
 
     coordinated state right below result =
-      let item = StackItem result (itemDerivation right) True True
+      let item = StackItem result (itemDerivation right) True True False
           cost = parseCost state
        in state
             { categoryStack = item : below
@@ -239,7 +274,7 @@ pairReductions config level grammarRules store (left, leftRaisable) (right, righ
             | level >= WithTypeRaising = foldl' raiseAndCompose ([], store1) raisingChoices
             | otherwise = ([], store1)
           plain = [Reduction (CombinatorRule combinator) result False | (combinator, result) <- composed, compositionEnabled combinator]
-       in (filter (withinCategoryBounds store2 . reductionResult) (plain ++ raised), store2)
+       in (filter (withinCategoryBounds config store2 . reductionResult) (plain ++ raised), store2)
   where
     ruleConfig = rules config
     special = ruleSpecialCategories grammarRules
@@ -283,11 +318,19 @@ pairReductions config level grammarRules store (left, leftRaisable) (right, righ
         allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
           && allowGeneralizedComposition ruleConfig
       _ -> False
-    withinCategoryBounds categoryStore categoryId =
-      categoryDepth (`lookupCategory` categoryStore) categoryId <= maxDepth bounds
-        && categorySlashCount (`lookupCategory` categoryStore) categoryId <= maxSlashes bounds
-        && categoryArity (`lookupCategory` categoryStore) categoryId <= maxArity bounds
-      where bounds = categories config
+
+withinCategoryBounds :: Config -> CategoryStore -> CategoryId -> Bool
+withinCategoryBounds config store categoryId =
+  categoryDepth (`lookupCategory` store) categoryId <= maxDepth bounds
+    && categorySlashCount (`lookupCategory` store) categoryId <= maxSlashes bounds
+    && categoryArity (`lookupCategory` store) categoryId <= maxArity bounds
+  where bounds = categories config
+
+-- | ASP applied to a category, if its result stays within category bounds.
+swapWithinBounds :: Config -> CategoryStore -> CategoryId -> Maybe (CategoryId, CategoryStore)
+swapWithinBounds config store categoryId = case argumentSwap store categoryId of
+  Just (swapped, store') | withinCategoryBounds config store' swapped -> Just (swapped, store')
+  _ -> Nothing
 
 isApplication :: Combinator -> Bool
 isApplication combinator = combinator `elem` [ForwardApplication, BackwardApplication]
@@ -301,7 +344,8 @@ isApplication combinator = combinator `elem` [ForwardApplication, BackwardApplic
 -- raised, so it over-approximates what the beam can build over the same span.
 -- That makes it a sound right-context test for Composition results.  Cost is
 -- cubic in sentence length times the square of the per-span category count,
--- plus a quartic coordination pass over spans that derive CONJ.
+-- plus a quartic coordination pass over spans that derive CONJ.  With ASP
+-- enabled every cell is closed under argument swapping.
 rightReachableCategories
   :: Config
   -> ParseLevel
@@ -316,11 +360,11 @@ rightReachableCategories config level grammarRules initialStore lexicon tokens =
     conjunction = if allowCoordination (rules config)
       then conjunctionCategory (ruleSpecialCategories grammarRules)
       else Nothing
-    bases = Map.fromList
-      [ ((position, position + 1), Set.fromList (categoriesForWord token lexicon))
-      | (position, token) <- zip [0 ..] tokens
-      ]
-    (chart, chartStore) = foldl' addLength (bases, initialStore) [2 .. tokenCount]
+    (bases, baseStore) = foldl' addBase (Map.empty, initialStore) (zip [0 ..] tokens)
+    addBase (cells, store) (position, token) =
+      let (categoriesHere, store') = closeUnderSwap (Set.fromList (categoriesForWord token lexicon), store)
+       in (Map.insert (position, position + 1) categoriesHere cells, store')
+    (chart, chartStore) = foldl' addLength (bases, baseStore) [2 .. tokenCount]
     addLength acc spanLength = foldl' (addSpan spanLength) acc [0 .. tokenCount - spanLength]
     addSpan spanLength (cells, store) start =
       let end = start + spanLength
@@ -339,10 +383,18 @@ rightReachableCategories config level grammarRules initialStore lexicon tokens =
               , rightStart <- [leftEnd + 1 .. end - 1]
               , Set.member conj (cell leftEnd rightStart cells)
               ]
-       in (Map.insert (start, end) (Set.union derived coordinatedCategories) cells, store')
+          (closedCell, store'') = closeUnderSwap (Set.union derived coordinatedCategories, store')
+       in (Map.insert (start, end) closedCell cells, store'')
     reducePair (found, store) (left, right) =
       let (reductions, store') = pairReductions config level grammarRules store (left, True) (right, True)
        in (foldl' (flip (Set.insert . reductionResult)) found reductions, store')
+    -- ASP is an involution, so one pass closes a set under swapping.
+    closeUnderSwap (categorySet, store)
+      | allowArgumentSwap (rules config) = foldl' addSwap (categorySet, store) (Set.toAscList categorySet)
+      | otherwise = (categorySet, store)
+    addSwap (found, store) categoryId = case swapWithinBounds config store categoryId of
+      Just (swapped, store') -> (Set.insert swapped found, store')
+      Nothing -> (found, store)
     cell start end = Map.findWithDefault Set.empty (start, end)
     reachable = IntMap.fromAscList
       [ (start, Set.unions [cell start end chart | end <- [start + 1 .. tokenCount]])

@@ -35,18 +35,18 @@ import Serialization.CandidateLexicon (saveCandidateLexicon)
 import Serialization.Derivation (derivationSummary)
 import Serialization.Grammar (loadGrammar, saveGrammar)
 import Serialization.Lexicon (saveLexicon)
-import System.Directory (copyFile, createDirectoryIfMissing)
+import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist)
 import System.Exit (die)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
 import System.IO (hFlush, hPutStr, hPutStrLn, stderr)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 
 data Command
   = Train FilePath FilePath (Maybe FilePath) FilePath Int Bool
-  | Evaluate FilePath FilePath FilePath Int
-  | Parse FilePath Text
+  | Evaluate FilePath FilePath (Maybe FilePath) FilePath Int
+  | Parse FilePath (Maybe FilePath) Text
   | InspectLexicon FilePath Text
-  | InspectCandidates FilePath Text
+  | InspectCandidates FilePath (Maybe FilePath) Text
   | BuildCandidates FilePath FilePath (Maybe FilePath) FilePath
 
 mainCLI :: IO ()
@@ -69,10 +69,15 @@ commandParser = hsubparser
       <*> optional (file "candidate-lexicon" "Candidate lexicon JSON")
       <*> strOption (long "output" <> metavar "DIR") <*> jobsParser
       <*> switch (long "no-progress" <> help "Disable the training progress display")
-    evaluateParser = Evaluate <$> file "corpus" "Input JSONL" <*> file "grammar" "Grammar JSON" <*> strOption (long "output" <> metavar "DIR") <*> jobsParser
-    parseParser = Parse <$> file "grammar" "Grammar JSON" <*> option (Text.pack <$> str) (long "sentence" <> metavar "TEXT")
+    ruleConfigParser = optional (file "config"
+      "YAML configuration for parser rules and bounds (default: config.snapshot.yaml next to the grammar, else built-in defaults)")
+    evaluateParser = Evaluate <$> file "corpus" "Input JSONL" <*> file "grammar" "Grammar JSON" <*> ruleConfigParser
+      <*> strOption (long "output" <> metavar "DIR") <*> jobsParser
+    parseParser = Parse <$> file "grammar" "Grammar JSON" <*> ruleConfigParser
+      <*> option (Text.pack <$> str) (long "sentence" <> metavar "TEXT")
     inspectParser = InspectLexicon <$> file "grammar" "Grammar JSON" <*> option (Text.pack <$> str) (long "word" <> metavar "WORD")
     inspectCandidatesParser = InspectCandidates <$> file "candidate-lexicon" "Candidate lexicon JSON"
+      <*> optional (file "config" "YAML configuration for atoms and category bounds (default: built-in defaults)")
       <*> option (Text.pack <$> str) (long "word" <> metavar "WORD")
     buildCandidatesParser = BuildCandidates <$> file "corpus" "Input JSONL" <*> file "config" "YAML configuration"
       <*> optional (file "wordnet" "WordNet lemma/POS inventory JSON (overrides candidate_constraints.wordnet_inventory_path)")
@@ -102,11 +107,12 @@ runCommand selectedCommand = case selectedCommand of
     copyFile configPath (output </> "config.snapshot.yaml")
     traverse_ (\path -> copyFile path (output </> "candidate_lexicon.snapshot.json")) selectedCandidatePath
     Text.putStrLn ("trained sentences=" <> Text.pack (show (length corpus)) <> " unresolved=" <> Text.pack (show (length (unresolvedSentences result))))
-  Evaluate corpusPath grammarPath output requestedJobs -> do
+  Evaluate corpusPath grammarPath commandConfigPath output requestedJobs -> do
     jobs <- configureJobs requestedJobs
+    config <- requireRuleConfig grammarPath commandConfigPath
     corpus <- requireCorpus corpusPath
     grammar <- requireGrammar grammarPath
-    let coverage = sentenceCoverageDetailsWithJobs jobs defaultConfig grammar corpus
+    let coverage = sentenceCoverageDetailsWithJobs jobs config grammar corpus
         covered = length (filter coverageCovered coverage)
         total = length coverage
         rate = if total == 0 then 0 else fromIntegral covered / fromIntegral total
@@ -119,14 +125,15 @@ runCommand selectedCommand = case selectedCommand of
     Text.putStrLn
       ("coverage=" <> Text.pack (show covered) <> "/" <> Text.pack (show total)
         <> " (" <> Text.pack (showFFloat1 (rate * 100)) <> "%)")
-  Parse grammarPath sentence -> do
+  Parse grammarPath commandConfigPath sentence -> do
+    config <- requireRuleConfig grammarPath commandConfigPath
     grammar <- requireGrammar grammarPath
     let sentenceTokens = Text.words sentence
-    case parseSentence defaultConfig (grammarCategories grammar) (grammarLexicon grammar) (grammarRules grammar) (rootCategory grammar) sentenceTokens of
+    case parseSentence config (grammarCategories grammar) (grammarLexicon grammar) (grammarRules grammar) (rootCategory grammar) sentenceTokens of
       Parsed success -> Lazy.putStr (encode (derivationSummary success) <> "\n")
       Failed failure -> do
         let diagnosticSentence = Sentence "<command-line>" sentenceTokens sentenceTokens [] [] Map.empty
-            diagnostic = case sentenceCoverageDetailsWithJobs 1 defaultConfig grammar [diagnosticSentence] of
+            diagnostic = case sentenceCoverageDetailsWithJobs 1 config grammar [diagnosticSentence] of
               result : _ -> renderCoverageLine grammar result
               [] -> "parse failed at token position " <> Text.pack (show (farthestPosition failure))
         die (Text.unpack diagnostic)
@@ -134,8 +141,9 @@ runCommand selectedCommand = case selectedCommand of
     grammar <- requireGrammar grammarPath
     let categoryIds = categoriesForWord word (grammarLexicon grammar)
     traverse_ (printCategory grammar) categoryIds
-  InspectCandidates candidatePath word -> do
-    (grammar, candidates) <- loadCandidates defaultConfig candidatePath
+  InspectCandidates candidatePath commandConfigPath word -> do
+    config <- maybe (pure defaultConfig) requireConfig commandConfigPath
+    (grammar, candidates) <- loadCandidates config candidatePath
     Text.putStrLn word
     traverse_ (printCandidate grammar) (candidateCategoriesForWord word candidates)
 
@@ -150,6 +158,22 @@ runCommand selectedCommand = case selectedCommand of
     saveCandidateLexicon output atoms store candidates >>= either (die . Text.unpack) pure
     Text.putStrLn ("wrote " <> Text.pack (show (candidateWordCount (candidateLexiconStats candidates)))
       <> " candidate entries to " <> Text.pack output)
+
+-- | Rule configuration for commands that parse with a frozen grammar.  Parsing
+-- must use the rules and bounds the grammar was trained with, so without an
+-- explicit @--config@ the training snapshot next to the grammar is preferred.
+-- The choice is reported on stderr.
+requireRuleConfig :: FilePath -> Maybe FilePath -> IO Config
+requireRuleConfig grammarPath commandConfigPath = case commandConfigPath of
+  Just path -> announce path >> requireConfig path
+  Nothing -> do
+    let snapshot = takeDirectory grammarPath </> "config.snapshot.yaml"
+    hasSnapshot <- doesFileExist snapshot
+    if hasSnapshot
+      then announce snapshot >> requireConfig snapshot
+      else hPutStrLn stderr "using built-in default parser rules (no --config, no config.snapshot.yaml)" >> pure defaultConfig
+  where
+    announce path = hPutStrLn stderr ("using parser rules from " <> path)
 
 requireConfig :: FilePath -> IO Config
 requireConfig path = loadConfig path >>= either die pure

@@ -8,6 +8,13 @@ rules:
   allow_backward_composition: true
   allow_crossed_composition: false
   allow_generalized_composition: false
+  max_composition_degree: 2
+  # lightblue's non-combinatory rules for its CONJ, PERIOD and PUNCT categories.
+  allow_coordination: true
+  allow_period_absorption: true
+  allow_punctuation_absorption: true
+  # ASP: (X\A)/B <=> (X/B)\A, at every parser level, at most once per constituent.
+  allow_argument_swap: false
 candidate_constraints:
   enabled: true
   candidate_lexicon_path: examples/constraint-benchmark-candidates.json

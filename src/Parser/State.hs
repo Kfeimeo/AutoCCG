@@ -19,6 +19,7 @@ data ParseLevel = ApplicationOnly | WithComposition | WithTypeRaising
 data ParseCost = ParseCost
   { typeRaisingUses :: !Int
   , compositionUses :: !Int
+  , argumentSwapUses :: !Int
   , derivationSteps :: !Int
   } deriving (Eq, Ord, Show)
 
@@ -39,6 +40,9 @@ data StackItem = StackItem
   -- lightblue, such a constituent cannot be the left conjunct of another
   -- coordination, so @a and b and c@ is bracketed only as @a and (b and c)@.
   , itemCoordinated :: !Bool
+  -- Whether ASP has already swapped this constituent's arguments.  Each
+  -- constituent is swapped at most once; a second swap would only restore it.
+  , itemSwapped :: !Bool
   } deriving (Eq, Ord, Show)
 
 data ParseState = ParseState
@@ -50,11 +54,11 @@ data ParseState = ParseState
   } deriving (Eq, Show)
 
 initialState :: ParseLevel -> ParseState
-initialState level = ParseState 0 [] level (ParseCost 0 0 0) 1
+initialState level = ParseState 0 [] level (ParseCost 0 0 0 0) 1
 
-semanticKey :: ParseState -> (Int, [(CategoryId, Bool, Bool)], ParseLevel)
+semanticKey :: ParseState -> (Int, [(CategoryId, Bool, Bool, Bool)], ParseLevel)
 semanticKey state =
   ( inputPosition state
-  , map (\item -> (itemCategory item, itemRaisable item, itemCoordinated item)) (categoryStack state)
+  , map (\item -> (itemCategory item, itemRaisable item, itemCoordinated item, itemSwapped item)) (categoryStack state)
   , activeParserLevel state
   )

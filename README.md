@@ -148,6 +148,14 @@ cabal run ccg-induction -- evaluate `
   --jobs 4
 ```
 
+`evaluate` and `parse` accept `--config FILE` for the parser rules and
+category bounds (`rules`, `categories`, `parser`). Without it they use the
+`config.snapshot.yaml` that `train` wrote next to the grammar, so a grammar is
+evaluated with the rules it was trained with, including ASP and Composition
+switches; only when neither exists do they fall back to the built-in defaults.
+The configuration in use is reported on stderr. `inspect-candidates` also
+accepts `--config` for atoms and category bounds.
+
 `--jobs` defaults to `1`. Training parallelizes independent grammar-beam and
 lexical-repair candidate parses; sentences remain sequential because each one
 updates the learned lexicon. Evaluation parallelizes sentences. Candidate
@@ -286,6 +294,7 @@ rules:
   allow_coordination: true
   allow_period_absorption: true
   allow_punctuation_absorption: true
+  allow_argument_swap: false
 
 training:
   seed: 42
@@ -547,6 +556,30 @@ Otherwise, when `use_wordnet_inventory` is enabled and an inventory is given by
 `candidate_constraints.wordnet_inventory_path` or `--wordnet`, every WordNet
 POS of the lemma is used. When candidate constraints are disabled, legacy
 initialization assigns the lowest-prior category of the matching rule.
+
+### Argument swap (ASP)
+
+`rules.allow_argument_swap` enables ASP, a unary rule that exchanges the order
+in which a category consumes its two outermost arguments when they lie on
+opposite sides:
+
+```text
+ASP   (X\A)/B  <=>  (X/B)\A
+```
+
+`A` stays on the left and `B` on the right, so word order and meaning are
+unchanged. For example `read := (S\NP)/NP` can become `(S/NP)\NP`, so
+`John read` is `S/NP` by backward Application, without Type-raising and
+Composition. ASP is available at every parser level, including Application
+only. It applies to lexical items and derived constituents, each at most once,
+right after the constituent is created. A swapped category must stay within the
+depth bound (slash count and arity never change). Parse costs count ASP uses
+after Composition uses, so a lower-cost derivation avoids unnecessary swaps.
+The Composition usefulness filter and the right-context chart account for ASP,
+so enabling it keeps the parser's completeness guarantee. It is disabled in the
+built-in defaults and in the experiment configurations, and enabled in
+`configs/default.yaml` and `configs/untruncated.yaml`; every configuration
+lists the switch explicitly.
 
 When constraints are disabled, the legacy bounded-universe repair path remains
 available for regression and performance comparisons. When enabled, unknown

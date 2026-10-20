@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- `evaluate` and `parse` accept `--config`; without it they use the training
+  `config.snapshot.yaml` next to the grammar, falling back to built-in
+  defaults, and report the choice on stderr. `inspect-candidates` accepts
+  `--config` for atoms and category bounds. Previously all three always used
+  the built-in defaults, so grammars trained with Composition, ASP, or wider
+  bounds were evaluated under different rules.
+- Every configuration lists `max_composition_degree`, the coordination and
+  absorption switches, and `allow_argument_swap` explicitly.
+- Add ASP, the argument-swap rule `(X\A)/B <=> (X/B)\A`, gated by
+  `rules.allow_argument_swap` (off by default, on in `configs/default.yaml`
+  and `configs/untruncated.yaml`). It applies at every parser level to any
+  constituent at most once, is depth-bounded, and is counted in the new
+  `ParseCost.argumentSwapUses`. The usefulness filter and right-context chart
+  include it.
 - Replace the default `pos_mapping` with lightblue's English lexicon
   (`fromNLTKtoCCG`): lightblue categories at prior 0, conventional
   CCGbank-style supplements at prior 1 or more, and conventional rules only for
