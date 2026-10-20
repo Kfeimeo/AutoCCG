@@ -3,7 +3,7 @@ module Lexicon.Compression (compressGrammar) where
 import Corpus.Types (Sentence (tokens))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Grammar.Types (Grammar (..))
+import Grammar.Types (Grammar (..), grammarRules)
 import Lexicon.Types (deleteEntry, lexiconEntries)
 import Parser.Config (Config)
 import Parser.Incremental (ParseOutcome (..), parseSentence)
@@ -24,6 +24,6 @@ compressGrammar config corpus grammar = foldl' tryRemove grammar entries
       { grammarLexicon = deleteEntry word categoryId (grammarLexicon current)
       , grammarProvenance = Map.delete (word, categoryId) (grammarProvenance current)
       }
-    covered candidate sentence = case parseSentence config (grammarCategories candidate) (grammarLexicon candidate) (raisingTemplates candidate) (rootCategory candidate) (tokens sentence) of
+    covered candidate sentence = case parseSentence config (grammarCategories candidate) (grammarLexicon candidate) (grammarRules candidate) (rootCategory candidate) (tokens sentence) of
       Parsed _ -> True
       Failed _ -> False

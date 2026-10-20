@@ -7,6 +7,7 @@ module CCG.CategoryStore
   , internAtomic
   , internFunctional
   , lookupCategory
+  , lookupNode
   , categoryCount
   , parseCategory
   , prettyCategory
@@ -55,6 +56,10 @@ internFunctional slash result argument = internCategory (Functional slash result
 
 lookupCategory :: CategoryId -> CategoryStore -> Maybe CategoryNode
 lookupCategory (CategoryId categoryId) = IntMap.lookup categoryId . idToNode
+
+-- | The identifier of an already interned category, without interning it.
+lookupNode :: CategoryNode -> CategoryStore -> Maybe CategoryId
+lookupNode node = HashMap.lookup node . nodeToId
 
 categoryCount :: CategoryStore -> Int
 categoryCount = IntMap.size . idToNode

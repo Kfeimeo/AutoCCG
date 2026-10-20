@@ -11,8 +11,10 @@
 -- Invariants:
 --
 -- * Rules are tried in configuration order and the first matching rule wins,
---   so more specific rules (e.g. exact @NNP@) must precede broader ones
---   (e.g. prefix @NN@).
+--   so more specific rules (e.g. exact @NNP@, or @DT@ restricted to the word
+--   @a@) must precede broader ones (e.g. prefix @NN@, or any @DT@).
+-- * A rule may be restricted to exact word forms, mirroring lightblue's
+--   @(word, pos)@ patterns such as @(\"and\", \"CC\")@.
 -- * Every template name referenced by a rule exists; this is checked when the
 --   mapping is decoded, so resolution is total.
 -- * A mapping only proposes prior candidates.  It never activates a category
@@ -53,6 +55,8 @@ data PosMatch
 
 data PosRule = PosRule
   { posRuleMatch :: !PosMatch
+  , posRuleWords :: !(Maybe [Text])
+  -- ^ Exact, case-sensitive word forms the rule is restricted to.
   , posRuleTemplateNames :: ![Text]
   -- ^ Named templates, expanded in the listed order.
   , posRuleCategories :: ![CandidateTemplateConfig]
@@ -75,22 +79,24 @@ posMappingFromTable table = appendExactTagRules table emptyPosMapping
 -- cascade rules keep precedence.
 appendExactTagRules :: Map Text [CandidateTemplateConfig] -> PosMapping -> PosMapping
 appendExactTagRules table mapping = mapping
-  { posRules = posRules mapping ++ [PosRule (ExactTags [tag]) [] templates | (tag, templates) <- Map.toAscList table] }
+  { posRules = posRules mapping ++ [PosRule (ExactTags [tag]) Nothing [] templates | (tag, templates) <- Map.toAscList table] }
 
 posMatches :: PosMatch -> Text -> Bool
 posMatches match tag = case match of
   ExactTags tags -> tag `elem` tags
   TagPrefix prefix -> prefix `Text.isPrefixOf` tag
 
--- | Templates of the first rule matching the tag, or 'Nothing' when no rule
--- matches.  An empty tag never matches, including an empty prefix: absent POS
--- is handled by the caller's shape and WordNet fallbacks.
-resolvePosTemplates :: PosMapping -> Text -> Maybe [CandidateTemplateConfig]
-resolvePosTemplates mapping tag
+-- | Templates of the first rule matching the word and tag, or 'Nothing' when
+-- no rule matches.  An empty tag never matches: absent POS is handled by the
+-- caller's shape and WordNet fallbacks.
+resolvePosTemplates :: PosMapping -> Text -> Text -> Maybe [CandidateTemplateConfig]
+resolvePosTemplates mapping word tag
   | Text.null tag = Nothing
-  | otherwise = case filter ((`posMatches` tag) . posRuleMatch) (posRules mapping) of
+  | otherwise = case filter matches (posRules mapping) of
       rule : _ -> Just (expandRule mapping rule)
       [] -> Nothing
+  where
+    matches rule = posMatches (posRuleMatch rule) tag && maybe True (word `elem`) (posRuleWords rule)
 
 -- | Every category template the mapping can produce, for configuration checks.
 posMappingTemplates :: PosMapping -> [CandidateTemplateConfig]
@@ -121,11 +127,14 @@ instance FromJSON PosRule where
     tags <- o .:? "tags"
     prefix <- o .:? "prefix"
     match <- selectMatch (catMaybes [ExactTags . pure <$> tag, ExactTags <$> tags, TagPrefix <$> prefix])
+    restriction <- o .:? "words"
     names <- o .:? "templates" .!= []
     inline <- o .:? "categories" .!= []
     if null names && null inline
       then fail "pos_mapping rule must name templates or list categories"
-      else pure (PosRule match names inline)
+      else if restriction == Just []
+        then fail "pos_mapping rule has an empty words list"
+        else pure (PosRule match restriction names inline)
     where
       selectMatch :: [PosMatch] -> Parser PosMatch
       selectMatch matches = case matches of

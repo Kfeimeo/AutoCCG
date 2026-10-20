@@ -21,7 +21,7 @@ import Data.List (sortOn)
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import Grammar.Types (CategoryProvenance (..), Grammar (..))
+import Grammar.Types (CategoryProvenance (..), Grammar (..), grammarRules)
 import Lexicon.Candidate (boundedCategoryUniverse)
 import Lexicon.CandidateLexicon
 import Lexicon.Initialization (internNamedCategory)
@@ -160,8 +160,8 @@ locallyFeasible config (Just failure) grammar candidateId
     compatible neighbor =
       not (null (applicationResults store candidateId neighbor))
         || not (null (applicationResults store neighbor candidateId))
-        || any (compositionEnabled . firstOf3) (compositionResults store candidateId neighbor)
-        || any (compositionEnabled . firstOf3) (compositionResults store neighbor candidateId)
+        || any (compositionEnabled . fst) (fst (compositionResults (maxCompositionDegree ruleConfig) store candidateId neighbor))
+        || any (compositionEnabled . fst) (fst (compositionResults (maxCompositionDegree ruleConfig) store neighbor candidateId))
     compositionEnabled ForwardComposition = allowForwardComposition ruleConfig
     compositionEnabled BackwardComposition = allowBackwardComposition ruleConfig
     compositionEnabled ForwardCrossedComposition =
@@ -180,7 +180,6 @@ locallyFeasible config (Just failure) grammar candidateId
         && allowGeneralizedComposition ruleConfig
     compositionEnabled _ = False
     ruleConfig = rules config
-    firstOf3 (value, _, _) = value
 
 unknownFallbackProposals :: Config -> Sentence -> Grammar -> [(RepairScore, RepairProposal)]
 unknownFallbackProposals config sentence initialGrammar = snd (foldl' addTemplate (initialGrammar, []) templates)
@@ -243,7 +242,7 @@ validate jobs config sentence proposals =
     succeeds proposal = case parseSentence config
       (grammarCategories (proposalGrammar proposal))
       (grammarLexicon (proposalGrammar proposal))
-      (raisingTemplates (proposalGrammar proposal))
+      (grammarRules (proposalGrammar proposal))
       (rootCategory (proposalGrammar proposal))
       (tokens sentence) of
         Parsed _ -> True

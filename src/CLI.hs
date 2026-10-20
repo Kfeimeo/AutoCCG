@@ -23,7 +23,7 @@ import Evaluation.Coverage
 import Evaluation.Export (writeCoverageResult)
 import GHC.Conc (setNumCapabilities)
 import Grammar.Induction
-import Grammar.Types (CategoryProvenance (..), Grammar (..))
+import Grammar.Types (CategoryProvenance (..), Grammar (..), grammarRules)
 import Lexicon.CandidateLexicon
 import Lexicon.Initialization (emptyGrammar)
 import Lexicon.Types (categoriesForWord, lexiconEntries)
@@ -122,7 +122,7 @@ runCommand selectedCommand = case selectedCommand of
   Parse grammarPath sentence -> do
     grammar <- requireGrammar grammarPath
     let sentenceTokens = Text.words sentence
-    case parseSentence defaultConfig (grammarCategories grammar) (grammarLexicon grammar) (raisingTemplates grammar) (rootCategory grammar) sentenceTokens of
+    case parseSentence defaultConfig (grammarCategories grammar) (grammarLexicon grammar) (grammarRules grammar) (rootCategory grammar) sentenceTokens of
       Parsed success -> Lazy.putStr (encode (derivationSummary success) <> "\n")
       Failed failure -> do
         let diagnosticSentence = Sentence "<command-line>" sentenceTokens sentenceTokens [] [] Map.empty

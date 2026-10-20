@@ -21,8 +21,11 @@ data Combinator
   | BackwardGeneralizedCrossedComposition
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-applyCombinator :: Combinator -> CategoryStore -> CategoryId -> CategoryId -> Maybe (CategoryId, CategoryStore)
-applyCombinator combinator store left right = case combinator of
+-- | The 'Int' is the maximum generalized Composition degree n of B^n.
+-- Generalized combinators produce degrees 2..n only; first-order Composition
+-- is always degree one and is unaffected.
+applyCombinator :: Int -> Combinator -> CategoryStore -> CategoryId -> CategoryId -> Maybe (CategoryId, CategoryStore)
+applyCombinator maxDegree combinator store left right = case combinator of
   ForwardApplication -> case lookupCategory left store of
     Just (Functional ForwardSlash result argument) | argument == right -> Just (result, store)
     _ -> Nothing
@@ -46,28 +49,32 @@ applyCombinator combinator store left right = case combinator of
       | y == y' -> Just (internFunctional ForwardSlash x z store)
     _ -> Nothing
   ForwardGeneralizedComposition -> case lookupCategory left store of
-    Just (Functional ForwardSlash x y) -> replaceResultSpine ForwardSlash 2 y x right store
+    Just (Functional ForwardSlash x y) -> replaceResultSpine ForwardSlash maxDegree y x right store
     _ -> Nothing
   BackwardGeneralizedComposition -> case lookupCategory right store of
-    Just (Functional BackwardSlash x y) -> replaceResultSpine BackwardSlash 2 y x left store
+    Just (Functional BackwardSlash x y) -> replaceResultSpine BackwardSlash maxDegree y x left store
     _ -> Nothing
   ForwardGeneralizedCrossedComposition -> case lookupCategory left store of
-    Just (Functional ForwardSlash x y) -> replaceResultSpine BackwardSlash 2 y x right store
+    Just (Functional ForwardSlash x y) -> replaceResultSpine BackwardSlash maxDegree y x right store
     _ -> Nothing
   BackwardGeneralizedCrossedComposition -> case lookupCategory right store of
-    Just (Functional BackwardSlash x y) -> replaceResultSpine ForwardSlash 2 y x left store
+    Just (Functional BackwardSlash x y) -> replaceResultSpine ForwardSlash maxDegree y x left store
     _ -> Nothing
 
 applicationResults :: CategoryStore -> CategoryId -> CategoryId -> [(Combinator, CategoryId, CategoryStore)]
 applicationResults store left right = results [ForwardApplication, BackwardApplication]
   where
     results = foldr collect []
-    collect combinator acc = case applyCombinator combinator store left right of
+    collect combinator acc = case applyCombinator 1 combinator store left right of
       Nothing -> acc
       Just (categoryId, store') -> (combinator, categoryId, store') : acc
 
-compositionResults :: CategoryStore -> CategoryId -> CategoryId -> [(Combinator, CategoryId, CategoryStore)]
-compositionResults store left right = results
+-- | All Composition results in combinator order, with generalized rules
+-- bounded by the maximum degree (see 'applyCombinator').  The store is
+-- threaded through every combinator, so each new result category is interned
+-- in the returned store and distinct results never share an identifier.
+compositionResults :: Int -> CategoryStore -> CategoryId -> CategoryId -> ([(Combinator, CategoryId)], CategoryStore)
+compositionResults maxDegree initialStore left right = results
   [ ForwardComposition
   , BackwardComposition
   , ForwardCrossedComposition
@@ -78,15 +85,19 @@ compositionResults store left right = results
   , BackwardGeneralizedCrossedComposition
   ]
   where
-    results = foldr collect []
-    collect combinator acc = case applyCombinator combinator store left right of
-      Nothing -> acc
-      Just (categoryId, store') -> (combinator, categoryId, store') : acc
+    results combinators =
+      let (found, finalStore) = foldl' collect ([], initialStore) combinators
+       in (reverse found, finalStore)
+    collect (acc, store) combinator = case applyCombinator maxDegree combinator store left right of
+      Nothing -> (acc, store)
+      Just (categoryId, store') -> ((combinator, categoryId) : acc, store')
 
 -- | Replace the result at the base of a uniform slash spine.  Requiring at
 -- least two spine layers keeps first-order Composition represented by its
 -- dedicated combinators and makes generalized rule use explicit in costs and
--- diagnostics.
+-- diagnostics.  The spine is never descended below @maxDegree@ layers, so
+-- B^n for n > maxDegree cannot be produced (e.g. degree 2 admits only
+-- X/Y (Y/Z)/W => (X/Z)/W and its mirror images).
 replaceResultSpine
   :: Slash
   -> Int
@@ -95,9 +106,11 @@ replaceResultSpine
   -> CategoryId
   -> CategoryStore
   -> Maybe (CategoryId, CategoryStore)
-replaceResultSpine slash minimumLayers target replacement = go 0
+replaceResultSpine slash maxDegree target replacement = go 0
   where
+    minimumLayers = 2 :: Int
     go layers categoryId store
+      | layers > maxDegree = Nothing
       | layers >= minimumLayers && categoryId == target = Just (replacement, store)
       | otherwise = case lookupCategory categoryId store of
           Just (Functional nodeSlash result argument) | nodeSlash == slash -> do

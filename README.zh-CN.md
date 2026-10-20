@@ -207,12 +207,30 @@ rules:
   allow_backward_composition: true
   allow_crossed_composition: false
   allow_generalized_composition: false
+  max_composition_degree: 2
+  allow_coordination: true
+  allow_period_absorption: true
+  allow_punctuation_absorption: true
 
 training:
   seed: 42
   compression_interval: 100
   unresolved_policy: queue
 ```
+
+交叉组合和广义组合分别由 `rules.allow_crossed_composition` 和
+`rules.allow_generalized_composition` 控制。广义组合作用于方向一致的斜杠脊，
+阶数从 2 到 `rules.max_composition_degree`（默认 `2`，至少为 `1`）；
+广义交叉组合需要同时开启两个开关。在默认阶数下，广义组合恰好就是二阶组合：
+
+```text
+B2>   X/Y  (Y/Z)/W  => (X/Z)/W
+B2<   (Y\Z)\W  X\Y  => (X\Z)\W
+B2x>  X/Y  (Y\Z)\W  => (X\Z)\W        （还需要 allow_crossed_composition）
+B2x<  (Y/Z)/W  X\Y  => (X/Z)/W        （还需要 allow_crossed_composition）
+```
+
+把阶数设为 `1` 会关闭广义组合；更高的值允许直到该阶数的 B^n，仍受范畴上限约束。
 
 默认原子表包含 `S`、`NP`、`N` 和 `PP`。候选约束、POS 模板、seed 条目、
 初始化策略和有界修复策略记录在 [`configs/default.yaml`](configs/default.yaml)。
@@ -272,13 +290,22 @@ data CategoryNode
 3. 配置的 Type-raising 加 Composition
 
 只有在解析器层级的回退全部失败后，才触发词汇修复。Type-raising 是一个局部融合操作：
-只有当相邻范畴能立即与提升后的范畴通过同向 Composition 组合时才生成。
-提升后的范畴永远不会插入或保留在 beam 中。
+只有当相邻范畴能立即与提升后的范畴通过已启用的 Composition 规则组合时才生成。
+提升后的范畴永远不会插入或保留在 beam 中。词汇项以及由 Application 或 Composition
+推导出的成分（例如 NP `the man`）都可以提升；融合 Type-raising 的结果不能再提升，
+因此任何成分都不会被提升两次。
 
-仅当相邻范畴对没有可用的 Application 规约，且其结果能被剩余输入消费时，
-才生成 Composition。解析器会预计算一个确定性的 `rightReachableCategories` chart，
-其中包含每个右上下文前缀仅通过 Application 可推导出的范畴，
-并将其作为轻量级有用性过滤器。
+仅当相邻范畴对没有可用的 Application 规约时，才生成 Composition。Composition 结果
+只有在仍可能参与推导时才保留：它能与栈中紧邻其下的成分组合，或能与剩余输入某个前缀
+可推导出的范畴组合，或它本身已是完整的根范畴。右侧判断使用确定性的
+`rightReachableCategories` chart：它用当前层级的全部规约（Application、已启用的
+Composition 和融合 Type-raising）构建，且不受 beam 限制，因此是 beam 可构造成分的
+超集，不会丢弃可推导的状态。该 chart 的复杂度是句长的三次方，每个 Composition 或
+Type-raising 层级计算一次。
+
+因此，在 beam 和状态容量不截断的配置下（例如 `configs/untruncated.yaml`），
+只要在已启用规则和范畴上限内存在到 `S` 的推导，解析器就能找到。它仍然只返回最低成功
+层级中代价最小的推导，并且同一相邻对上能做 Application 时不会再尝试 Composition。
 
 ### 语法搜索
 
@@ -324,50 +351,74 @@ locked seed 可以在初始化时激活。未锁定的 seed 条目会一直作�
 
 ### POS 到范畴的映射
 
-POS 证据通过 `pos_mapping` 映射为先验范畴，其组织方式参考
-[lightblue](https://github.com/DaisukeBekki/lightblue) 的词典构建：
+默认的 `pos_mapping` 复现了 [lightblue](https://github.com/DaisukeBekki/lightblue)
+的英文词典（`src/Parser/Language/English/Lexicon.hs` 中的 `fromNLTKtoCCG`）。它把
+NLTK 的 Penn Treebank 标签（部分条目还要求具体词形）各映射到一个范畴；
+lightblue 的特征和语义未保留：
 
-| lightblue | 本仓库 |
+| lightblue 模式 `(词, POS)` | 范畴（先验 0） |
 |---|---|
-| `Templates.hs` 范畴构造函数 | `pos_mapping.templates`：带先验代价的具名范畴列表 |
-| `jumanPos2Cat` 对 JUMAN 品词/细分类/活用型的 guard 级联 | `pos_mapping.rules`：针对 POS 标签的有序规则，首个匹配者生效 |
-| `MyLexicon.hs` 手写功能词词典 | `seed_lexicon`：与 POS 候选合并，按先验代价排序 |
-| JUMAN++ 形态分析 | NLTK `pos_tag` 输出的 Penn Treebank 标签（或 spaCy/Stanza 的 UPOS） |
+| `(_, NNP)`、`(_, PRP)` | `NP` |
+| `("a"/"A", DT)` | `(S/(S\NP))/N` |
+| `(_, DT)` | `NP/N` |
+| `(_, NN)` | `N` |
+| `(_, WP)` | `N/N` |
+| `(_, NNS)`、`(_, VBN)`、`(_, VBD)` | `S\NP` |
+| `(_, VBZ)` | `(S\NP)/NP` |
+| `(_, IN)`、`(_, RB)` | `(S\NP)\(S\NP)` |
+| `("and"/"or", CC)` | `CONJ` |
+| `("Either", CC)` | `((S/S)/CONJ)/S` |
+| `(_, ".")` | `PERIOD` |
+| 标点和符号标签的 `(_, _)` | `PUNCT` |
+
+lightblue 的范畴先验代价固定为 0，因此初始激活的就是它。对于 lightblue 中不常规或
+覆盖过窄的条目（例如把 `NNS` 当作谓词、`IN` 不带宾语、`VBD` 只有不及物用法），
+另外以先验代价 1 及以上补充常规的 CCGbank 风格范畴，它们只能经过验证的修复进入
+已学习词典。lightblue 未映射的标签（`VB`、`VBP`、`VBG`、`JJ*`、`MD`、`TO`、`CD`、
+其他 `CC` 词等）使用常规规则，而不是 lightblue 的兜底 `PUNCT`。seed 词典中的 `a`
+和标点也与 lightblue 保持一致。
+
+`CONJ`、`PERIOD` 和 `PUNCT` 是在 `atoms.predefined` 中声明的原子，由 lightblue 的
+三条非组合规则处理，每条都可在 `rules` 中单独开关：
+
+```text
+allow_coordination             X  CONJ  X  => X   （左侧 X 本身不能是并列结果）
+allow_period_absorption        S  PERIOD   => S
+allow_punctuation_absorption   X  PUNCT    => X   （X 的最终结果不能是 N）
+```
+
+它们属于 Application 层级：在每个解析层级都可用，并且同一相邻对上一旦可用就不再
+尝试 Composition。
+
+`pos_mapping` 本身是通用机制：由针对 POS 标签的有序规则级联选择具名 `templates`，
+首个匹配的规则生效。
 
 ```yaml
 pos_mapping:
   templates:
-    proper_noun: [{category: "NP", prior_cost: 0}]
-    common_noun:
-      - {category: "N", prior_cost: 0}
+    lb_conjunction: [{category: "CONJ", prior_cost: 0}]
+    lb_common_noun: [{category: "N", prior_cost: 0}]
+    common_noun_supplement:
       - {category: "NP", prior_cost: 1}
-    verb:
-      - {category: "S\\NP", prior_cost: 0}
-      - {category: "(S\\NP)/NP", prior_cost: 0}
-    participle_modifier: [{category: "N/N", prior_cost: 2}]
+      - {category: "N/N", prior_cost: 2}
   rules:
-    - {tags: ["NNP", "NNPS"], templates: [proper_noun]}   # 必须位于 prefix NN 之前
-    - {prefix: "NN", templates: [common_noun]}
-    - {tags: ["VB", "VBD", "VBP", "VBZ"], templates: [verb]}
-    - {tag: "VBG", templates: [verb, participle_modifier],
-       categories: [{category: "NP", prior_cost: 3}]}
+    - {tag: "CC", words: ["and", "or"], templates: [lb_conjunction]}
+    - {tag: "NN", templates: [lb_common_noun, common_noun_supplement]}
+    - {prefix: "JJ", categories: [{category: "N/N", prior_cost: 0}]}
 ```
 
-每条规则恰好使用 `tag`、`tags` 或 `prefix` 之一进行匹配，依次展开其具名
-`templates`，再追加内联 `categories`。引用未定义模板或匹配条件不唯一的规则会在
-加载配置时被拒绝。YAML 中请给标签和范畴加引号：裸写的 `N` 会被解析为布尔值。
-细粒度的 Penn Treebank 标签相当于 JUMAN 的活用细分类：动词形态、比较级、
-所有格和标点类别会选择不同的模板组合。默认配置同时覆盖 NLTK 输出的 Penn Treebank
-标签集，以及 spaCy 和 Stanza 输出的 Universal POS 标签。扁平的
-`pos_to_categories: {TAG: [...]}` 表仍被接受，作为在 `pos_mapping.rules`
-之后尝试的精确标签规则的简写。
+每条规则恰好使用 `tag`、`tags` 或 `prefix` 之一进行匹配，可以用 `words`
+限定为精确、区分大小写的词形，依次展开其具名 `templates`，再追加内联 `categories`。
+引用未定义模板、匹配条件不唯一或 `words` 为空的规则会在加载配置时被拒绝。
+YAML 中请给标签和范畴加引号：裸写的 `N` 会被解析为布尔值。默认配置同样映射了
+spaCy 和 Stanza 输出的 Universal POS 标签。扁平的 `pos_to_categories: {TAG: [...]}`
+表仍被接受，作为在 `pos_mapping.rules` 之后尝试的精确标签规则的简写。
 
 对每个 token，驱动级联的标签是语料 POS（UPOS `PUNCT` 会按 token 形状细化）。
 没有 POS 时使用封闭形式的 token 形状。否则，若启用了 `use_wordnet_inventory`，
 并通过 `candidate_constraints.wordnet_inventory_path` 或 `--wordnet` 提供了清单，
-则使用该 lemma 的所有 WordNet POS。与 lightblue 不同，这里的范畴不带形态特征
-（`S[dcl]`、`NP[nom]`）：原子清单没有特征，因此动词形态只影响提出哪些有界模板。
-禁用候选约束时，旧版初始化会为匹配规则分配先验代价最低的范畴。
+则使用该 lemma 的所有 WordNet POS。禁用候选约束时，旧版初始化会为匹配规则分配
+先验代价最低的范畴。
 
 禁用约束时，旧的有界全集修复路径仍可用于回归和性能比较。
 启用约束时，unknown fallback 只使用小型固定模板清单，

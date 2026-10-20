@@ -222,6 +222,10 @@ rules:
   allow_backward_composition: true
   allow_crossed_composition: false
   allow_generalized_composition: false
+  max_composition_degree: 2
+  allow_coordination: true
+  allow_period_absorption: true
+  allow_punctuation_absorption: true
 
 training:
   seed: 42
@@ -238,9 +242,20 @@ bounds are rejected during loading.
 
 Crossed and generalized Composition are independently gated by
 `rules.allow_crossed_composition` and
-`rules.allow_generalized_composition`. Generalized rules are limited to a
-uniform slash spine of degree two or greater; generalized crossed rules require
-both flags. Every generated result is checked against the configured category
+`rules.allow_generalized_composition`. Generalized rules operate on a uniform
+slash spine of degree two up to `rules.max_composition_degree` (default `2`,
+must be at least `1`); generalized crossed rules require both flags. With the
+default degree, generalized Composition is exactly second-order Composition:
+
+```text
+B2>   X/Y  (Y/Z)/W  => (X/Z)/W
+B2<   (Y\Z)\W  X\Y  => (X\Z)\W
+B2x>  X/Y  (Y\Z)\W  => (X\Z)\W        (also needs allow_crossed_composition)
+B2x<  (Y/Z)/W  X\Y  => (X/Z)/W        (also needs allow_crossed_composition)
+```
+
+Setting the degree to `1` disables generalized Composition; higher values admit
+B^n up to that degree, still subject to the category bounds. Every generated result is checked against the configured category
 depth, slash-count, and arity bounds. Parsing remains strictly left-to-right:
 the parser shifts tokens in corpus order and only reduces the two adjacent
 constituents at the top of the stack.
@@ -315,14 +330,28 @@ The parser attempts rule levels in order:
 
 Lexical repair is triggered only after parser-level fallbacks fail. Type-raising
 is a local fused operation: it is generated only when an adjacent category can
-immediately combine with the raised category by harmonic Composition. A raised
-category is never inserted into or retained by the beam.
+immediately combine with the raised category by an enabled Composition rule. A
+raised category is never inserted into or retained by the beam. Lexical items
+and constituents derived by Application or Composition (for example the NP
+`the man`) may be raised; a fused Type-raising result may not, so no
+constituent is raised twice.
 
 Composition is generated only when the adjacent pair has no enabled Application
-reduction and its result can be consumed by the remaining input. The parser
-precomputes a deterministic `rightReachableCategories` chart containing the
-categories derivable from each right-context prefix by Application alone, then
-uses that chart as a lightweight usefulness filter.
+reduction. A Composition result is kept only if it can still take part in a
+derivation: it combines with the constituent directly below it on the stack,
+or with some category derivable from a prefix of the remaining input, or it is
+already the complete root. The right-context test uses a deterministic
+`rightReachableCategories` chart built with every reduction of the current
+level (Application, enabled Composition, and fused Type-raising) and no beam
+limits, so it over-approximates what the beam can build and never discards a
+derivable state. The chart is cubic in sentence length and is computed once per
+Composition or Type-raising level.
+
+With beam and state capacities that never truncate (for example
+`configs/untruncated.yaml`), the parser therefore finds a derivation to `S`
+whenever one exists under the enabled rules and category bounds. It still
+returns only the cheapest derivation at the lowest successful level, and
+Application blocks Composition on the same adjacent pair.
 
 ### Grammar Search
 
@@ -383,55 +412,81 @@ a general POS tagger.
 
 ### POS-to-category mapping
 
-POS evidence is mapped to prior categories by `pos_mapping`, organised after
-the lexicon set-up of [lightblue](https://github.com/DaisukeBekki/lightblue):
+The default `pos_mapping` reproduces the English lexicon of
+[lightblue](https://github.com/DaisukeBekki/lightblue)
+(`src/Parser/Language/English/Lexicon.hs`, `fromNLTKtoCCG`), which maps NLTK
+Penn Treebank tags, and for some entries word forms, to one category each.
+Features and semantics are dropped:
 
-| lightblue | here |
+| lightblue pattern `(word, POS)` | category (prior 0) |
 |---|---|
-| `Templates.hs` category constructors | `pos_mapping.templates`: named lists of categories with prior costs |
-| `jumanPos2Cat` guard cascade over JUMAN POS/subPOS/conjugation type | `pos_mapping.rules`: ordered rules over POS tags; the first match wins |
-| `MyLexicon.hs` hand-written function-word lexicon | `seed_lexicon`: merged with POS candidates and ranked by prior cost |
-| JUMAN++ morphological analysis | NLTK `pos_tag` Penn Treebank tags (or spaCy/Stanza UPOS) |
+| `(_, NNP)`, `(_, PRP)` | `NP` |
+| `("a"/"A", DT)` | `(S/(S\NP))/N` |
+| `(_, DT)` | `NP/N` |
+| `(_, NN)` | `N` |
+| `(_, WP)` | `N/N` |
+| `(_, NNS)`, `(_, VBN)`, `(_, VBD)` | `S\NP` |
+| `(_, VBZ)` | `(S\NP)/NP` |
+| `(_, IN)`, `(_, RB)` | `(S\NP)\(S\NP)` |
+| `("and"/"or", CC)` | `CONJ` |
+| `("Either", CC)` | `((S/S)/CONJ)/S` |
+| `(_, ".")` | `PERIOD` |
+| `(_, _)` for punctuation and symbol tags | `PUNCT` |
+
+The lightblue category always has prior cost 0, so it is the one activated
+initially. Where lightblue is unconventional or narrow (for example `NNS` as a
+predicate, `IN` without an object, or `VBD` as intransitive only), the
+conventional CCGbank-style categories are added as supplements with prior cost
+1 or more; they enter the learned lexicon only through validated repair. Tags
+lightblue does not map (`VB`, `VBP`, `VBG`, `JJ*`, `MD`, `TO`, `CD`, other `CC`
+words, ...) use conventional rules instead of lightblue's catch-all `PUNCT`.
+The seed lexicon follows lightblue for `a` and for punctuation.
+
+`CONJ`, `PERIOD`, and `PUNCT` are atoms declared in `atoms.predefined` and are
+combined by lightblue's non-combinatory rules, each gated in `rules`:
+
+```text
+allow_coordination             X  CONJ  X  => X   (the left X is not itself a coordination)
+allow_period_absorption        S  PERIOD   => S
+allow_punctuation_absorption   X  PUNCT    => X   (the final result of X is not N)
+```
+
+They belong to the Application level: they are available at every parser
+level and block Composition on the same pair.
+
+`pos_mapping` itself is generic: named `templates` selected by an ordered rule
+cascade over POS tags, where the first match wins.
 
 ```yaml
 pos_mapping:
   templates:
-    proper_noun: [{category: "NP", prior_cost: 0}]
-    common_noun:
-      - {category: "N", prior_cost: 0}
+    lb_conjunction: [{category: "CONJ", prior_cost: 0}]
+    lb_common_noun: [{category: "N", prior_cost: 0}]
+    common_noun_supplement:
       - {category: "NP", prior_cost: 1}
-    verb:
-      - {category: "S\\NP", prior_cost: 0}
-      - {category: "(S\\NP)/NP", prior_cost: 0}
-    participle_modifier: [{category: "N/N", prior_cost: 2}]
+      - {category: "N/N", prior_cost: 2}
   rules:
-    - {tags: ["NNP", "NNPS"], templates: [proper_noun]}   # before prefix NN
-    - {prefix: "NN", templates: [common_noun]}
-    - {tags: ["VB", "VBD", "VBP", "VBZ"], templates: [verb]}
-    - {tag: "VBG", templates: [verb, participle_modifier],
-       categories: [{category: "NP", prior_cost: 3}]}
+    - {tag: "CC", words: ["and", "or"], templates: [lb_conjunction]}
+    - {tag: "NN", templates: [lb_common_noun, common_noun_supplement]}
+    - {prefix: "JJ", categories: [{category: "N/N", prior_cost: 0}]}
 ```
 
-Each rule matches with exactly one of `tag`, `tags`, or `prefix` and yields
-its named `templates` in order, followed by inline `categories`. Undefined
-template names and ambiguous matchers are rejected when the configuration is
-loaded. Quote tags and categories in YAML: a bare `N` is read as a boolean.
-Fine-grained Penn Treebank tags act like JUMAN's conjugation subtypes: verb
-forms, comparatives, possessives, and punctuation classes select different
-template combinations. The default configuration covers the Penn Treebank
-tagset produced by NLTK and the Universal POS tags produced by spaCy and
-Stanza. The flat `pos_to_categories: {TAG: [...]}` table is still accepted as
-shorthand for exact-tag rules tried after `pos_mapping.rules`.
+Each rule matches with exactly one of `tag`, `tags`, or `prefix`, may be
+restricted to exact, case-sensitive word forms with `words`, and yields its
+named `templates` in order, followed by inline `categories`. Undefined
+template names, ambiguous matchers, and empty `words` lists are rejected when
+the configuration is loaded. Quote tags and categories in YAML: a bare `N` is
+read as a boolean. The default configuration also maps the Universal POS tags
+produced by spaCy and Stanza. The flat `pos_to_categories: {TAG: [...]}` table
+is still accepted as shorthand for exact-tag rules tried after
+`pos_mapping.rules`.
 
 Per token, the tag driving the cascade is the corpus POS (UPOS `PUNCT` is
 refined by token shape). Without POS, a closed-form token shape is used.
 Otherwise, when `use_wordnet_inventory` is enabled and an inventory is given by
 `candidate_constraints.wordnet_inventory_path` or `--wordnet`, every WordNet
-POS of the lemma is used. Unlike lightblue, categories carry no morphological
-features (`S[dcl]`, `NP[nom]`): the atom inventory is featureless, so verb
-form only changes which bounded templates are proposed. When candidate
-constraints are disabled, legacy initialization assigns the lowest-prior
-category of the matching rule.
+POS of the lemma is used. When candidate constraints are disabled, legacy
+initialization assigns the lowest-prior category of the matching rule.
 
 When constraints are disabled, the legacy bounded-universe repair path remains
 available for regression and performance comparisons. When enabled, unknown

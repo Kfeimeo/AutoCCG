@@ -49,6 +49,14 @@ data RuleConfig = RuleConfig
   { allowForwardApplication :: !Bool, allowBackwardApplication :: !Bool
   , allowForwardComposition :: !Bool, allowBackwardComposition :: !Bool
   , allowCrossedComposition :: !Bool, allowGeneralizedComposition :: !Bool
+  , maxCompositionDegree :: !Int
+  -- ^ Maximum degree n of generalized Composition B^n; 2 admits only B^2.
+  , allowCoordination :: !Bool
+  -- ^ @X CONJ X => X@ (see "CCG.SpecialRules").
+  , allowPeriodAbsorption :: !Bool
+  -- ^ @S PERIOD => S@.
+  , allowPunctuationAbsorption :: !Bool
+  -- ^ @X PUNCT => X@ for non-nominal X.
   } deriving (Eq, Show, Generic)
 
 data TrainingConfig = TrainingConfig
@@ -105,7 +113,7 @@ defaultConfig = Config
   (CategoryBounds 5 4 3)
   (ParserConfig 128 12 2048 8 10000)
   (GrammarConfig 16 32 2)
-  (RuleConfig True True True True False False)
+  (RuleConfig True True True True False False 2 True True True)
   (TrainingConfig 42 100 "queue")
   (CandidateConstraintsConfig False Nothing True Nothing True True "small_default" 8 True)
   emptyPosMapping
@@ -133,6 +141,14 @@ instance FromJSON RuleConfig where
     <$> o .:? "allow_forward_application" .!= True <*> o .:? "allow_backward_application" .!= True
     <*> o .:? "allow_forward_composition" .!= True <*> o .:? "allow_backward_composition" .!= True
     <*> o .:? "allow_crossed_composition" .!= False <*> o .:? "allow_generalized_composition" .!= False
+    <*> (o .:? "max_composition_degree" .!= 2 >>= positiveDegree)
+    <*> o .:? "allow_coordination" .!= True
+    <*> o .:? "allow_period_absorption" .!= True
+    <*> o .:? "allow_punctuation_absorption" .!= True
+    where
+      positiveDegree degree
+        | degree >= 1 = pure degree
+        | otherwise = fail "rules.max_composition_degree must be at least 1"
 instance FromJSON TrainingConfig where
   parseJSON = withObject "training" $ \o -> TrainingConfig
     <$> o .:? "seed" .!= 42 <*> o .:? "compression_interval" .!= 100 <*> o .:? "unresolved_policy" .!= "queue"

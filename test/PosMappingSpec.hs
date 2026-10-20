@@ -23,9 +23,9 @@ import Test.Tasty.HUnit
 tests :: TestTree
 tests = testGroup "POS mapping"
   [ testCase "first matching rule wins" $ do
-      let proper = PosRule (ExactTags ["NNP"]) [] [CandidateTemplateConfig "NP" 0]
-          common = PosRule (TagPrefix "NN") [] [CandidateTemplateConfig "N" 0]
-          categoriesOf rules = fmap (map templateCategory) . resolvePosTemplates (PosMapping Map.empty rules)
+      let proper = PosRule (ExactTags ["NNP"]) Nothing [] [CandidateTemplateConfig "NP" 0]
+          common = PosRule (TagPrefix "NN") Nothing [] [CandidateTemplateConfig "N" 0]
+          categoriesOf rules = fmap (map templateCategory) . resolvePosTemplates (PosMapping Map.empty rules) "w"
       categoriesOf [proper, common] "NNP" @?= Just ["NP"]
       categoriesOf [common, proper] "NNP" @?= Just ["N"]
       categoriesOf [proper, common] "NNS" @?= Just ["N"]
@@ -37,8 +37,18 @@ tests = testGroup "POS mapping"
               [ ("verb", [CandidateTemplateConfig "S\\NP" 0])
               , ("modifier", [CandidateTemplateConfig "N/N" 2])
               ])
-            [PosRule (ExactTags ["VBG"]) ["verb", "modifier"] [CandidateTemplateConfig "NP" 3]]
-      map templateCategory <$> resolvePosTemplates mapping "VBG" @?= Just ["S\\NP", "N/N", "NP"]
+            [PosRule (ExactTags ["VBG"]) Nothing ["verb", "modifier"] [CandidateTemplateConfig "NP" 3]]
+      map templateCategory <$> resolvePosTemplates mapping "running" "VBG" @?= Just ["S\\NP", "N/N", "NP"]
+  , testCase "word-restricted rules match exact word forms only" $ do
+      let conjunction = PosRule (ExactTags ["CC"]) (Just ["and", "or"]) [] [CandidateTemplateConfig "CONJ" 0]
+          other = PosRule (ExactTags ["CC"]) Nothing [] [CandidateTemplateConfig "(S\\S)/S" 0]
+          resolve word = map templateCategory <$> resolvePosTemplates (PosMapping Map.empty [conjunction, other]) word "CC"
+      resolve "and" @?= Just ["CONJ"]
+      resolve "And" @?= Just ["(S\\S)/S"]
+      resolve "but" @?= Just ["(S\\S)/S"]
+  , testCase "YAML rejects an empty words restriction" $
+      assertDecodeFailure "empty words list"
+        "pos_mapping:\n  rules:\n    - {tag: CC, words: [], categories: [{category: \"CONJ\"}]}\n"
   , testCase "YAML rejects undefined template references" $
       assertDecodeFailure "undefined template"
         "pos_mapping:\n  templates: {}\n  rules:\n    - {tag: NN, templates: [missing]}\n"
@@ -49,24 +59,55 @@ tests = testGroup "POS mapping"
       case decodeConfig "pos_mapping:\n  rules:\n    - {tag: NN, categories: [{category: \"N\"}]}\npos_to_categories:\n  NN: [{category: \"NP\"}]\n  VB: [{category: \"S\\\\NP\"}]\n" of
         Left message -> assertFailure message
         Right config -> do
-          let resolve = fmap (map templateCategory) . resolvePosTemplates (posMapping config)
+          let resolve = fmap (map templateCategory) . resolvePosTemplates (posMapping config) "w"
           resolve "NN" @?= Just ["N"]
           resolve "VB" @?= Just ["S\\NP"]
-  , testCase "default YAML maps NLTK Penn Treebank tags" $ do
+  , testCase "default YAML reproduces lightblue's English lexicon first" $ do
       config <- requireDefaultConfig
       withCandidates config emptyWordNetInventory
-        [ sentenceWith ["John", "likes", "the", "running", "dog", "."] [] ["NNP", "VBZ", "DT", "VBG", "NN", "."]
-        , sentenceWith ["bigger"] [] ["JJR"]
+        [ sentenceWith ["John", "likes", "a", "dog", "and", "Mary", "sleeps", "."] []
+            ["NNP", "VBZ", "DT", "NN", "CC", "NNP", "NNS", "."]
+        , sentenceWith ["Either", "she", "walked", "or", "the", "dogs", "ran", "quickly", "in", ","] []
+            ["CC", "PRP", "VBD", "CC", "DT", "NNS", "VBN", "RB", "IN", ","]
+        , sentenceWith ["who"] [] ["WP"]
         ] $ \atoms store candidates -> do
           let categoriesOf word = render atoms store (candidateCategoriesForWord word candidates)
-          take 1 (categoriesOf "John") @?= ["NP"]
-          assertElem "(S\\NP)/NP" (categoriesOf "likes")
-          take 1 (categoriesOf "the") @?= ["NP/N"]
+              lightblue word = take 1 (categoriesOf word)
+          lightblue "John" @?= ["NP"]
+          lightblue "she" @?= ["NP"]
+          lightblue "likes" @?= ["(S\\NP)/NP"]
+          lightblue "a" @?= ["(S/(S\\NP))/N"]
+          lightblue "the" @?= ["NP/N"]
+          lightblue "dog" @?= ["N"]
+          lightblue "who" @?= ["N/N"]
+          lightblue "sleeps" @?= ["S\\NP"]
+          lightblue "walked" @?= ["S\\NP"]
+          lightblue "ran" @?= ["S\\NP"]
+          lightblue "quickly" @?= ["(S\\NP)\\(S\\NP)"]
+          lightblue "in" @?= ["(S\\NP)\\(S\\NP)"]
+          categoriesOf "and" @?= ["CONJ"]
+          categoriesOf "or" @?= ["CONJ"]
+          categoriesOf "Either" @?= ["((S/S)/CONJ)/S"]
+          categoriesOf "." @?= ["PERIOD"]
+          lightblue "," @?= ["PUNCT"]
+          -- Conventional supplements stay available to repair at a higher prior.
+          assertElem "N" (categoriesOf "dogs")
+          assertElem "((S\\NP)\\(S\\NP))/NP" (categoriesOf "in")
+          assertElem "(N\\N)/(S\\NP)" (categoriesOf "who")
+          assertElem "NP/N" (categoriesOf "a")
+          assertElem "(S\\NP)/NP" (categoriesOf "walked")
+          assertBool "supplements must not tie with lightblue categories"
+            (all ((>= 1) . candidatePriorCost) (drop 1 (candidateCategoriesForWord "in" candidates)))
+  , testCase "default YAML maps tags lightblue leaves to its catch-all" $ do
+      config <- requireDefaultConfig
+      withCandidates config emptyWordNetInventory
+        [sentenceWith ["running", "bigger", "will", "but"] [] ["VBG", "JJR", "MD", "CC"]] $ \atoms store candidates -> do
+          let categoriesOf word = render atoms store (candidateCategoriesForWord word candidates)
           assertElem "N/N" (categoriesOf "running")
           assertElem "S\\NP" (categoriesOf "running")
-          take 1 (categoriesOf "dog") @?= ["N"]
-          categoriesOf "." @?= ["S\\S"]
           assertElem "AP/PP" (categoriesOf "bigger")
+          take 1 (categoriesOf "will") @?= ["(S\\NP)/(S\\NP)"]
+          assertBool "non-lightblue CC must not become CONJ" ("CONJ" `notElem` categoriesOf "but")
   , testCase "WordNet POS is used only for tokens without corpus POS" $ do
       let config = enabledConfig
             { posMapping = posMappingFromTable (Map.singleton "NOUN" [CandidateTemplateConfig "N" 0])
@@ -83,7 +124,7 @@ tests = testGroup "POS mapping"
   , testCase "built candidate lexicons round-trip through JSON" $ do
       config <- requireDefaultConfig
       withCandidates config emptyWordNetInventory
-        [sentenceWith ["John", "likes", "the", "dog", "."] [] ["NNP", "VBZ", "DT", "NN", "."]] $ \atoms store candidates ->
+        [sentenceWith ["John", "likes", "a", "dog", "and", "Mary", "."] [] ["NNP", "VBZ", "DT", "NN", "CC", "NNP", "."]] $ \atoms store candidates ->
           case encodeCandidateLexicon atoms store candidates of
             Left message -> assertFailure (Text.unpack message)
             Right bytes -> do

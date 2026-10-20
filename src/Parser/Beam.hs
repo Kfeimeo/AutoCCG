@@ -1,7 +1,6 @@
 module Parser.Beam (deduplicateStates) where
 
 import qualified Data.Map.Strict as Map
-import Data.List (foldl')
 import Parser.State (ParseState (..), semanticKey)
 
 deduplicateStates :: Int -> [ParseState] -> [ParseState]

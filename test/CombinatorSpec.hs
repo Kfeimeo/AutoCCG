@@ -18,27 +18,34 @@ tests = testGroup "combinators"
   , testCase "backward application" $ fixture ["NP", "S\\NP", "S"] $ \[arg, fun, target] store ->
       fmap (\(_, result, _) -> result) (single (applicationResults store arg fun)) @?= Just target
   , testCase "forward composition" $ fixture ["X/Y", "Y/Z", "X/Z"] $ \[left, right, target] store ->
-      resultFor ForwardComposition (compositionResults store left right) @?= Just target
+      resultFor ForwardComposition (fst (compositionResults 2 store left right)) @?= Just target
   , testCase "forward crossed composition" $ fixture ["X/Y", "Y\\Z", "X\\Z"] $ \[left, right, target] store ->
-      resultFor ForwardCrossedComposition (compositionResults store left right) @?= Just target
+      resultFor ForwardCrossedComposition (fst (compositionResults 2 store left right)) @?= Just target
   , testCase "backward crossed composition" $ fixture ["Y/Z", "X\\Y", "X/Z"] $ \[left, right, target] store ->
-      resultFor BackwardCrossedComposition (compositionResults store left right) @?= Just target
+      resultFor BackwardCrossedComposition (fst (compositionResults 2 store left right)) @?= Just target
   , testCase "forward generalized composition" $
       fixture ["X/Y", "(Y/Z)/W", "(X/Z)/W"] $ \[left, right, target] store ->
-        resultFor ForwardGeneralizedComposition (compositionResults store left right) @?= Just target
+        resultFor ForwardGeneralizedComposition (fst (compositionResults 2 store left right)) @?= Just target
   , testCase "backward generalized composition" $
       fixture ["(Y\\Z)\\W", "X\\Y", "(X\\Z)\\W"] $ \[left, right, target] store ->
-        resultFor BackwardGeneralizedComposition (compositionResults store left right) @?= Just target
+        resultFor BackwardGeneralizedComposition (fst (compositionResults 2 store left right)) @?= Just target
   , testCase "generalized crossed composition" $
       fixture ["X/Y", "(Y\\Z)\\W", "(X\\Z)\\W"] $ \[left, right, target] store ->
-        resultFor ForwardGeneralizedCrossedComposition (compositionResults store left right) @?= Just target
+        resultFor ForwardGeneralizedCrossedComposition (fst (compositionResults 2 store left right)) @?= Just target
+  , testCase "generalized composition degree is capped" $
+      fixture ["X/Y", "((Y/Z)/W)/V", "((X/Z)/W)/V"] $ \[left, right, target] store -> do
+        resultFor ForwardGeneralizedComposition (fst (compositionResults 2 store left right)) @?= Nothing
+        resultFor ForwardGeneralizedComposition (fst (compositionResults 3 store left right)) @?= Just target
+  , testCase "degree one disables generalized composition" $
+      fixture ["X/Y", "(Y/Z)/W"] $ \[left, right] store ->
+        resultFor ForwardGeneralizedComposition (fst (compositionResults 1 store left right)) @?= Nothing
   , testCase "invalid combination" $ fixture ["NP", "NP"] $ \[left, right] store ->
       applicationResults store left right @?= []
   ]
   where
     single [value] = Just value
     single _ = Nothing
-    resultFor wanted = fmap (\(_, result, _) -> result) . single . filter (\(rule, _, _) -> rule == wanted)
+    resultFor wanted = fmap snd . single . filter ((== wanted) . fst)
 
 fixture :: [Text] -> ([CategoryId] -> CategoryStore -> Assertion) -> Assertion
 fixture texts assertion = case foldM add ([], defaultAtomTable, emptyCategoryStore) texts of

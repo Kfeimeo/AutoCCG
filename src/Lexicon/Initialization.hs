@@ -47,12 +47,12 @@ initializeSentenceWords mapping sentence grammar = foldl' initialize grammar (zi
     tokenCount = length (tokens sentence)
     initialize current (index, word, pos)
       | not (null (categoriesForWord word (grammarLexicon current))) = current
-      | otherwise = case internNamedCategory (guess index tokenCount pos) current of
+      | otherwise = case internNamedCategory (guess index tokenCount word pos) current of
           Left _ -> current
           Right (categoryId, updated) -> updated { grammarLexicon = insertEntry word categoryId (grammarLexicon updated) }
 
-    guess index count pos
-      | Just (template : _) <- sortOn templatePriorCost <$> resolvePosTemplates mapping pos = templateCategory template
+    guess index count word pos
+      | Just (template : _) <- sortOn templatePriorCost <$> resolvePosTemplates mapping word pos = templateCategory template
       | count == 1 = "S"
       | index == 0 || index == count - 1 = "NP"
       | otherwise = "(S\\NP)/NP"

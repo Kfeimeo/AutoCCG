@@ -159,7 +159,7 @@ trainCorpusWithObserver requestedJobs observe config candidates baseGrammar corp
                in (repairedCandidates ++ [unresolvedCandidate index candidate initialized], repairBatchStats batch)
 
     parseWith grammar' sentence = parseSentence config (grammarCategories grammar') (grammarLexicon grammar')
-      (raisingTemplates grammar') (rootCategory grammar') (tokens sentence)
+      (grammarRules grammar') (rootCategory grammar') (tokens sentence)
 
     accepted index old grammar' success repairCount = old
       { candidateGrammar = grammar'

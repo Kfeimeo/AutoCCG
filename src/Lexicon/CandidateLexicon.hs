@@ -230,7 +230,7 @@ buildCandidateLexiconFromConfig config inventory corpus atoms store = do
             | useWordNetInventory constraints =
                 [(tag, FromWordNetPos) | tag <- Map.findWithDefault [] (Text.toLower lemma) inventory]
             | otherwise = []
-          addEvidence current (tag, source) = case resolvePosTemplates (posMapping config) tag of
+          addEvidence current (tag, source) = case resolvePosTemplates (posMapping config) word tag of
             Nothing -> Right current
             Just templates -> addConfigured word source current templates
       withPos <- foldM addEvidence state evidence

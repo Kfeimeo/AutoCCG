@@ -7,7 +7,7 @@ import CCG.Atom (AtomTable, lookupAtom)
 import CCG.CategoryStore (CategoryStore)
 import Corpus.Types (Sentence (..))
 import qualified Data.Map.Strict as Map
-import Grammar.Types (CategoryProvenance (..), Grammar (..))
+import Grammar.Types (CategoryProvenance (..), Grammar (..), grammarRules)
 import Lexicon.CandidateLexicon
 import Lexicon.PosMapping (PosMatch (..), PosRule (..), posMappingFromTable)
 import Lexicon.Initialization (emptyGrammar, initializeLearnedLexicon, internNamedCategory)
@@ -62,7 +62,7 @@ tests = testGroup "candidate lexicon"
           Right (np, grammar0) -> do
             let grammar = grammar0 { grammarLexicon = insertEntry "John" np (grammarLexicon grammar0) }
                 parse current = parseSentence config (grammarCategories current) (grammarLexicon current)
-                  (raisingTemplates current) (rootCategory current) ["John", "runs"]
+                  (grammarRules current) (rootCategory current) ["John", "runs"]
             case parse grammar of
               Failed _ -> pure ()
               Parsed _ -> assertFailure "parser used an inactive candidate"
@@ -145,16 +145,21 @@ tests = testGroup "candidate lexicon"
       case loaded of
         Left message -> assertFailure message
         Right config -> do
-          let tags = concatMap (ruleTags . posRuleMatch) (posRules (posMapping config))
-              ruleTags match = case match of
+          let ruleTags match = case match of
                 ExactTags values -> values
                 TagPrefix prefix -> [prefix]
-              corpus = [sentence [tag] [tag] | tag <- tags]
+              corpus =
+                [ sentence [word] [tag]
+                | rule <- posRules (posMapping config)
+                , tag <- ruleTags (posRuleMatch rule)
+                , word <- maybe [tag] id (posRuleWords rule)
+                ]
           case buildCandidateLexiconFromConfig config emptyWordNetInventory corpus
             (grammarAtoms emptyGrammar) (grammarCategories emptyGrammar) of
             Left message -> assertFailure (show message)
             Right (atomTable, _, _) ->
-              assertBool "default YAML did not configure AP" (lookupAtom "AP" atomTable /= Nothing)
+              mapM_ (\atom -> assertBool ("default YAML did not configure " <> show atom) (lookupAtom atom atomTable /= Nothing))
+                ["AP", "CONJ", "PERIOD", "PUNCT"]
   , testCase "default YAML supplies bounded punctuation and numeric candidates" $ do
       loaded <- loadConfig "configs/default.yaml"
       case loaded of
@@ -167,9 +172,9 @@ tests = testGroup "candidate lexicon"
             Right (atomTable, store, candidates) -> do
               render atomTable store (candidateCategoriesForWord "42" candidates) @?= ["N/N", "NP"]
               render atomTable store (candidateCategoriesForWord "," candidates) @?=
-                ["S\\S", "(S\\S)/S", "NP\\NP", "N\\N"]
-              render atomTable store (candidateCategoriesForWord "!" candidates) @?= ["S\\S"]
-              render atomTable store (candidateCategoriesForWord "?" candidates) @?= ["S\\S"]
+                ["PUNCT", "(S\\S)/S", "NP\\NP", "N\\N"]
+              render atomTable store (candidateCategoriesForWord "!" candidates) @?= ["PERIOD"]
+              render atomTable store (candidateCategoriesForWord "?" candidates) @?= ["PERIOD"]
   , testCase "untruncated YAML raises every operational search capacity" $ do
       loaded <- loadConfig "configs/untruncated.yaml"
       case loaded of

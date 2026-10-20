@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- Replace the default `pos_mapping` with lightblue's English lexicon
+  (`fromNLTKtoCCG`): lightblue categories at prior 0, conventional
+  CCGbank-style supplements at prior 1 or more, and conventional rules only for
+  tags lightblue does not map. Seeds for `a`, `in`, and punctuation follow it.
+- Add lightblue's non-combinatory rules for the new `CONJ`, `PERIOD`, and
+  `PUNCT` atoms: coordination `X CONJ X => X`, `S PERIOD => S`, and
+  `X PUNCT => X` for non-nominal X, gated by `rules.allow_coordination`,
+  `rules.allow_period_absorption`, and `rules.allow_punctuation_absorption`.
+  The parser now takes `GrammarRules` (Type-raising templates plus the reserved
+  categories, see `Grammar.Types.grammarRules`) instead of a template list.
+- `pos_mapping` rules accept an optional `words` restriction for lightblue's
+  `(word, POS)` patterns; `resolvePosTemplates` now takes the word.
+- Make the Composition usefulness filter sound. A Composition result is kept if
+  it combines with its left stack neighbour, with any category derivable from
+  the remaining input, or is the complete root. The right-context chart now
+  uses every reduction of the current level instead of Application only.
+  Previously, results consumed by a left neighbour or produced at the end of a
+  sentence were discarded, so for example object relatives
+  (`(N\N)/(S/NP)` with a type-raised subject) never parsed.
+- Allow constituents derived by Application or Composition, such as `the man`,
+  to be type-raised; fused Type-raising results remain non-raisable.
+  `StackItem.itemTypeRaisingPosition` is replaced by `itemRaisable`.
+- Thread the category store through all parser reductions.
+  `compositionResults` now returns the threaded store. Previously, Composition
+  results outside the pre-interned category universe received identifiers
+  absent from the store, so they could not combine further and distinct results
+  could share an identifier.
+- Add `Parser.Incremental.pairReductions`, shared by the parser and the
+  right-context chart.
+- Bound generalized Composition by `rules.max_composition_degree` (default
+  `2`), so enabling it yields exactly second-order Composition (B2>, B2<, and
+  the crossed B2x>, B2x< when crossed Composition is enabled). Previously the
+  degree was limited only by category bounds. `configs/default.yaml` and
+  `configs/untruncated.yaml` set the degree to 2 explicitly.
 - Replace the flat POS-to-category table with a lightblue-style `pos_mapping`:
   named category templates selected by an ordered first-match rule cascade
   over POS tags (`tag`, `tags`, or `prefix`), validated at configuration load.

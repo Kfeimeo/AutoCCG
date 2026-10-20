@@ -12,7 +12,7 @@ import Control.Parallel.Strategies (parListChunk, rseq, using)
 import Corpus.Types (Sentence (sentenceId, tokens))
 import qualified Data.Set as Set
 import Data.Text (Text)
-import Grammar.Types (Grammar (..))
+import Grammar.Types (Grammar (..), grammarRules)
 import Lexicon.Types (categoriesForWord)
 import Parser.Config (Config)
 import Parser.Incremental (ParseOutcome (..), ParseSuccess (successfulLevel), parseSentence)
@@ -74,7 +74,7 @@ sentenceCoverageDetailsWithJobs jobs config grammar corpus =
           wordRate = ratio categorizedWords wordCount
           missing = filter (not . hasCategory) distinctWords
        in case parseSentence config (grammarCategories grammar) lexicon
-            (raisingTemplates grammar) (rootCategory grammar) sentenceTokens of
+            (grammarRules grammar) (rootCategory grammar) sentenceTokens of
               Parsed success ->
                 SentenceCoverage (sentenceId sentence) True tokenCount categorizedTokens tokenRate
                   wordCount categorizedWords wordRate assignmentCount missing Nothing []

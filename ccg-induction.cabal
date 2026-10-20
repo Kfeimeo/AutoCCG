@@ -18,6 +18,7 @@ library
       CCG.CategoryStore
       CCG.Combinator
       CCG.TypeRaising
+      CCG.SpecialRules
       CCG.Derivation
       Corpus.Types
       Corpus.Jsonl
