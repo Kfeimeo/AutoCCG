@@ -5,6 +5,8 @@ module Parser.Config
   ( AtomConfig (..)
   , CategoryBounds (..)
   , ParserConfig (..)
+  , ParserAlgorithm (..)
+  , DerivationOutput (..)
   , GrammarConfig (..)
   , RuleConfig (..)
   , TrainingConfig (..)
@@ -15,17 +17,19 @@ module Parser.Config
   , InitializationConfig (..)
   , RepairConfig (..)
   , Config (..)
+  , combinatorEnabled
   , defaultConfig
   , loadConfig
   ) where
 
-import Data.Aeson (FromJSON (..), Object, withObject, (.:?), (.!=))
+import Data.Aeson (FromJSON (..), Object, withObject, withText, (.:?), (.!=))
 import Data.Aeson.Types (Parser)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
 import GHC.Generics (Generic)
+import CCG.Combinator (Combinator (..))
 import Lexicon.PosMapping (CandidateTemplateConfig (..), PosMapping (..), appendExactTagRules, emptyPosMapping)
 
 data AtomConfig = AtomConfig
@@ -39,7 +43,39 @@ data CategoryBounds = CategoryBounds
 data ParserConfig = ParserConfig
   { beamWidth :: !Int, maxStackDepth :: !Int, maxStatesPerPosition :: !Int
   , maxReductionsPerShift :: !Int, parseCountCap :: !Int
+  , parserAlgorithm :: !ParserAlgorithm
+  , derivationOutput :: !DerivationOutput
   } deriving (Eq, Show, Generic)
+
+-- | Which parser 'Parser.Incremental.parseSentence' runs.
+data ParserAlgorithm
+  = ShiftReduce
+  -- ^ Left-to-right beam shift-reduce parser with rule-level fallback.
+  | EisnerNormalForm
+  -- ^ Exhaustive CKY chart parser with Eisner (1996) normal-form constraints
+  -- over Application and Composition only (see "Parser.Eisner").
+  deriving (Eq, Show, Generic)
+
+-- | How many derivations the Eisner parser keeps for the root.
+data DerivationOutput
+  = FirstDerivation
+  -- ^ One lowest-cost derivation.
+  | AllDerivations
+  -- ^ Every normal-form derivation, i.e. every semantic reading, up to
+  -- @parse_count_cap@.
+  deriving (Eq, Show, Generic)
+
+instance FromJSON ParserAlgorithm where
+  parseJSON = withText "parser.algorithm" $ \value -> case value of
+    "shift_reduce" -> pure ShiftReduce
+    "eisner" -> pure EisnerNormalForm
+    _ -> fail "parser.algorithm must be shift_reduce or eisner"
+
+instance FromJSON DerivationOutput where
+  parseJSON = withText "parser.derivations" $ \value -> case value of
+    "first" -> pure FirstDerivation
+    "all" -> pure AllDerivations
+    _ -> fail "parser.derivations must be first or all"
 
 data GrammarConfig = GrammarConfig
   { grammarBeamWidth :: !Int, maxRepairsPerFailure :: !Int, maxJointRepairWidth :: !Int
@@ -114,11 +150,28 @@ data Config = Config
   , repair :: !RepairConfig
   } deriving (Eq, Show, Generic)
 
+-- | Whether the rule switches enable a binary combinator.  Crossed and
+-- generalized variants also need their direction's harmonic switch.
+combinatorEnabled :: RuleConfig -> Combinator -> Bool
+combinatorEnabled ruleConfig combinator = case combinator of
+  ForwardApplication -> allowForwardApplication ruleConfig
+  BackwardApplication -> allowBackwardApplication ruleConfig
+  ForwardComposition -> allowForwardComposition ruleConfig
+  BackwardComposition -> allowBackwardComposition ruleConfig
+  ForwardCrossedComposition -> allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
+  BackwardCrossedComposition -> allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
+  ForwardGeneralizedComposition -> allowForwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
+  BackwardGeneralizedComposition -> allowBackwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
+  ForwardGeneralizedCrossedComposition ->
+    allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig && allowGeneralizedComposition ruleConfig
+  BackwardGeneralizedCrossedComposition ->
+    allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig && allowGeneralizedComposition ruleConfig
+
 defaultConfig :: Config
 defaultConfig = Config
   (AtomConfig ["S", "NP", "N", "PP"] 8)
   (CategoryBounds 5 4 3)
-  (ParserConfig 128 12 2048 8 10000)
+  (ParserConfig 128 12 2048 8 10000 ShiftReduce FirstDerivation)
   (GrammarConfig 16 32 2)
   (RuleConfig True True True True False False 2 True True True False)
   (TrainingConfig 42 100 "queue")
@@ -140,6 +193,8 @@ instance FromJSON ParserConfig where
     <$> o .:? "beam_width" .!= 128 <*> o .:? "max_stack_depth" .!= 12
     <*> o .:? "max_states_per_position" .!= 2048 <*> o .:? "max_reductions_per_shift" .!= 8
     <*> o .:? "parse_count_cap" .!= 10000
+    <*> o .:? "algorithm" .!= ShiftReduce
+    <*> o .:? "derivations" .!= FirstDerivation
 instance FromJSON GrammarConfig where
   parseJSON = withObject "grammar" $ \o -> GrammarConfig
     <$> o .:? "beam_width" .!= 16 <*> o .:? "max_repairs_per_failure" .!= 32 <*> o .:? "max_joint_repair_width" .!= 2
@@ -192,7 +247,31 @@ instance FromJSON RepairConfig where
     <*> o .:? "allow_unknown_fallback" .!= True
     <*> o .:? "unknown_fallback_max_candidates" .!= 5
 instance FromJSON Config where
-  parseJSON = withObject "config" $ \o -> Config
+  parseJSON = withObject "config" $ \o -> parseConfig o >>= checkEisnerRules
+
+-- | The Eisner parser implements only Application and Composition, so other
+-- rules must be switched off explicitly rather than silently ignored.
+checkEisnerRules :: Config -> Parser Config
+checkEisnerRules config
+  | parserAlgorithm (parser config) /= EisnerNormalForm = pure config
+  | null enabledOthers = pure config
+  | otherwise = fail ("parser.algorithm eisner supports only Application and Composition; disable "
+      <> unwords enabledOthers)
+  where
+    ruleConfig = rules config
+    enabledOthers =
+      [ name
+      | (name, enabled) <-
+          [ ("rules.allow_coordination", allowCoordination ruleConfig)
+          , ("rules.allow_period_absorption", allowPeriodAbsorption ruleConfig)
+          , ("rules.allow_punctuation_absorption", allowPunctuationAbsorption ruleConfig)
+          , ("rules.allow_argument_swap", allowArgumentSwap ruleConfig)
+          ]
+      , enabled
+      ]
+
+parseConfig :: Object -> Parser Config
+parseConfig o = Config
     <$> o .:? "atoms" .!= atoms defaultConfig
     <*> o .:? "categories" .!= categories defaultConfig <*> o .:? "parser" .!= parser defaultConfig
     <*> o .:? "grammar" .!= grammar defaultConfig <*> o .:? "rules" .!= rules defaultConfig

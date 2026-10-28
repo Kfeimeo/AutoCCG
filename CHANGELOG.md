@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add the Eisner normal-form CKY parser (`parser.algorithm: eisner`,
+  `Parser.Eisner`) over Application and Composition only, with
+  `parser.derivations: first | all` (default `first`) and the ready
+  configuration `configs/eisner.yaml`. It records full derivation trees;
+  `parse` output is version 2 with a `derivations` field. Configuration loading
+  rejects `algorithm: eisner` with coordination, absorption, or ASP enabled.
+- `ParseSuccess` and `ParseOutcome` move to `Parser.Outcome` (re-exported by
+  `Parser.Incremental`); `ParseSuccess` gains `allDerivations`. Rule switches
+  are checked by the shared `Parser.Config.combinatorEnabled`.
 - ASP is now its own parser level, `WithArgumentSwap`, tried only after
   Application and Composition fail and before Type-raising, instead of being
   available from the Application level. The level is skipped when ASP is

@@ -257,6 +257,13 @@ Parsing is left-to-right and incremental, but not a single irreversible left fol
 
 Use a beam-stack or shift-reduce parser that can retain multiple candidate states.
 
+Exception: `parser.algorithm: eisner` selects an exhaustive CKY chart parser
+with Eisner (1996) normal-form constraints over Application and Composition
+only (`Parser.Eisner`). It exists to enumerate every semantic reading without
+spurious ambiguity; it must stay deterministic, bounded by the category bounds
+and `parse_count_cap`, and must report the same failure frontier shape as the
+shift-reduce parser. The rule levels below apply to the shift-reduce parser.
+
 ### Rule levels
 
 #### Level 0: Application only

@@ -1,0 +1,389 @@
+# Eisner normal-form parsing: an exhaustive CKY chart over Application and
+# Composition only (forward/backward B and B^2), with Eisner's (1996)
+# normal-form constraints, so every derivation of the root is a distinct
+# semantic reading.  No Type-raising, ASP, coordination, or absorption rules.
+#
+#   parser.derivations: first   keep one lowest-cost derivation (default)
+#   parser.derivations: all     keep every reading, up to parse_count_cap
+#
+# The POS mapping is the lightblue mapping of configs/default.yaml, except that
+# lightblue's CONJ, PERIOD, and PUNCT categories, which need non-combinatory
+# rules, are replaced by Application-compatible categories.
+atoms:
+  predefined: ["S", "NP", "N", "PP", "AP"]
+  max_count: 8
+
+categories:
+  max_depth: 5
+  max_slashes: 5
+  max_arity: 5
+
+parser:
+  beam_width: 256
+  max_stack_depth: 20
+  max_states_per_position: 4096
+  max_reductions_per_shift: 12
+  # Upper bound on derivations counted, and kept with derivations: all.
+  parse_count_cap: 1000
+  algorithm: eisner
+  derivations: first
+
+grammar:
+  beam_width: 24
+  max_repairs_per_failure: 64
+  max_joint_repair_width: 2
+
+rules:
+  allow_forward_application: true
+  allow_backward_application: true
+  allow_forward_composition: true
+  allow_backward_composition: true
+  allow_crossed_composition: false
+  allow_generalized_composition: true
+  # Generalized Composition is limited to B^2:
+  #   X/Y  (Y/Z)/W => (X/Z)/W        (Y\Z)\W  X\Y => (X\Z)\W
+  max_composition_degree: 2
+  # Not part of the Eisner parser; must stay off with algorithm: eisner.
+  allow_coordination: false
+  allow_period_absorption: false
+  allow_punctuation_absorption: false
+  allow_argument_swap: false
+
+candidate_constraints:
+  enabled: true
+  candidate_lexicon_path: data/processed/candidate_lexicon.json
+  use_wordnet_inventory: true
+  use_pos_templates: true
+  use_seed_lexicon: true
+  unknown_policy: small_default
+  max_candidates_per_word: 16
+  reject_candidates_outside_category_bounds: true
+  # Ranked per-token pos_candidates (enrich_with_pos.py --backend nltk): the
+  # i-th tag adds i * pos_candidate_rank_cost to its templates' prior costs.
+  use_pos_candidates: true
+  pos_candidate_rank_cost: 1
+
+initialization:
+  use_locked_seed_entries: true
+  activate_single_candidate_words: true
+  activate_best_candidate_per_word: true
+  max_initial_prior_cost: 1
+
+repair:
+  use_candidate_lexicon_first: true
+  max_candidates_generated: 300
+  max_candidates_validated: 80
+  allow_unknown_fallback: true
+  unknown_fallback_max_candidates: 8
+
+# POS -> CCG prior candidates.
+#
+# The first section reproduces the English lexicon of lightblue
+# (https://github.com/DaisukeBekki/lightblue, src/Parser/Language/English/
+# Lexicon.hs, function fromNLTKtoCCG) for NLTK Penn Treebank tags, without
+# lightblue's features and semantics.  Every lightblue category has prior cost
+# 0, so it is the one activated initially.  Conventional CCGbank-style
+# categories are added as supplements with prior cost >= 1; they enter the
+# learned lexicon only through validated repair.
+#
+# lightblue's CONJ, PERIOD and PUNCT categories are combined by the
+# coordination and absorption rules enabled under `rules` (X CONJ X => X,
+# S PERIOD => S, X PUNCT => X).  Tags that lightblue does not map are handled
+# by the conventional rules in the second section instead of lightblue's
+# catch-all `(w, _) -> PUNCT`, which is kept only for punctuation and symbols.
+#
+# - Rules are tried top to bottom; the FIRST matching rule wins.
+# - A rule matches with exactly one of `tag`, `tags`, or `prefix`, optionally
+#   restricted to exact word forms with `words`, and yields its named
+#   `templates` (in order) followed by inline `categories`.
+# - seed_lexicon below is merged with POS candidates; prior cost, not source,
+#   decides their order.
+pos_mapping:
+  templates:
+    # ---- lightblue English categories (prior 0) ----
+    lb_noun_phrase:                    # NNP, PRP
+      - {category: "NP", prior_cost: 0}
+    lb_generalized_quantifier:         # ("a", DT)
+      - {category: "(S/(S\\NP))/N", prior_cost: 0}
+    lb_determiner:                     # DT
+      - {category: "NP/N", prior_cost: 0}
+    lb_common_noun:                    # NN
+      - {category: "N", prior_cost: 0}
+    lb_wh_pronoun:                     # WP
+      - {category: "N/N", prior_cost: 0}
+    lb_intransitive_verb:              # NNS, VBN, VBD
+      - {category: "S\\NP", prior_cost: 0}
+    lb_transitive_verb:                # VBZ
+      - {category: "(S\\NP)/NP", prior_cost: 0}
+    lb_verb_phrase_modifier:           # IN, RB
+      - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+    # Application-compatible replacements for lightblue's CONJ, PERIOD and
+    # PUNCT, which need non-combinatory rules the Eisner parser does not have.
+    lb_conjunction:                    # ("and", CC), ("or", CC)
+      - {category: "(N\\N)/N", prior_cost: 0}
+      - {category: "(NP\\NP)/NP", prior_cost: 0}
+      - {category: "(S\\S)/S", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/(S\\NP)", prior_cost: 1}
+    lb_either:                         # ("Either", CC)
+      - {category: "S/S", prior_cost: 0}
+    lb_period:                         # (w, ".")
+      - {category: "S\\S", prior_cost: 0}
+    lb_punctuation:                    # (w, _) for punctuation and symbols
+      - {category: "S\\S", prior_cost: 0}
+
+    # ---- conventional supplements to lightblue entries (prior >= 1) ----
+    determiner_supplement:             # "a" as an object determiner
+      - {category: "NP/N", prior_cost: 1}
+    determiner_pronoun:                # "this", "all" without a noun
+      - {category: "NP", prior_cost: 2}
+    common_noun_supplement:
+      - {category: "NP", prior_cost: 1}
+      - {category: "N/N", prior_cost: 2}
+    plural_noun_supplement:            # NNS as a noun, not a predicate
+      - {category: "N", prior_cost: 1}
+      - {category: "NP", prior_cost: 2}
+      - {category: "N/N", prior_cost: 3}
+    wh_pronoun_supplement:
+      - {category: "NP", prior_cost: 1}
+      - {category: "(N\\N)/(S\\NP)", prior_cost: 1}
+      - {category: "(N\\N)/(S/NP)", prior_cost: 2}
+    verb_supplement:
+      - {category: "S\\NP", prior_cost: 1}
+      - {category: "(S\\NP)/NP", prior_cost: 1}
+      - {category: "(S\\NP)/PP", prior_cost: 3}
+      - {category: "((S\\NP)/NP)/NP", prior_cost: 4}
+      - {category: "(S\\NP)/S", prior_cost: 4}
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 4}
+    preposition_supplement:            # IN with its object, or as subordinator
+      - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 1}
+      - {category: "PP/NP", prior_cost: 2}
+      - {category: "(N\\N)/NP", prior_cost: 2}
+      - {category: "((S\\NP)/(S\\NP))/NP", prior_cost: 3}
+      - {category: "(S/S)/S", prior_cost: 3}
+      - {category: "(S\\S)/S", prior_cost: 3}
+    adverb_supplement:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 1}
+      - {category: "S/S", prior_cost: 2}
+      - {category: "S\\S", prior_cost: 3}
+      - {category: "(N/N)/(N/N)", prior_cost: 3}
+      - {category: "AP/AP", prior_cost: 3}
+    comma_supplement:                  # clause linking and attachment
+      - {category: "(S\\S)/S", prior_cost: 2}
+      - {category: "NP\\NP", prior_cost: 2}
+      - {category: "N\\N", prior_cost: 3}
+    colon_supplement:
+      - {category: "(S\\S)/S", prior_cost: 1}
+    opening_bracket_supplement:        # PUNCT only absorbs to its left
+      - {category: "S/S", prior_cost: 1}
+      - {category: "NP/NP", prior_cost: 2}
+
+    # ---- conventional templates for tags lightblue does not map ----
+    proper_noun:
+      - {category: "NP", prior_cost: 0}
+    pronoun:
+      - {category: "NP", prior_cost: 0}
+    common_noun:
+      - {category: "N", prior_cost: 0}
+      - {category: "NP", prior_cost: 1}
+      - {category: "N/N", prior_cost: 2}
+    determiner:
+      - {category: "NP/N", prior_cost: 0}
+    possessive_determiner:
+      - {category: "NP/N", prior_cost: 0}
+    predeterminer:
+      - {category: "NP/NP", prior_cost: 0}
+    possessive_marker:
+      - {category: "(NP/N)\\NP", prior_cost: 0}
+    relativizer:
+      - {category: "(N\\N)/(S\\NP)", prior_cost: 0}
+      - {category: "(N\\N)/(S/NP)", prior_cost: 1}
+    wh_adverb:
+      - {category: "(S/S)/S", prior_cost: 1}
+      - {category: "(S\\S)/S", prior_cost: 1}
+      - {category: "(N\\N)/S", prior_cost: 2}
+    adjective:
+      - {category: "N/N", prior_cost: 0}
+      - {category: "AP", prior_cost: 1}
+    adverb:
+      - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+      - {category: "S/S", prior_cost: 1}
+      - {category: "S\\S", prior_cost: 2}
+      - {category: "(N/N)/(N/N)", prior_cost: 2}
+      - {category: "AP/AP", prior_cost: 2}
+    particle:
+      - {category: "(S\\NP)\\(S\\NP)", prior_cost: 0}
+    preposition:
+      - {category: "PP/NP", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 0}
+      - {category: "((S\\NP)/(S\\NP))/NP", prior_cost: 2}
+      - {category: "(N\\N)/NP", prior_cost: 1}
+    subordinator:
+      - {category: "S/S", prior_cost: 1}
+      - {category: "(S/S)/S", prior_cost: 2}
+      - {category: "(S\\S)/S", prior_cost: 2}
+    infinitival_to:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+      - {category: "PP/NP", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/NP", prior_cost: 1}
+    modal:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+    auxiliary:
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 0}
+      - {category: "(S\\NP)/AP", prior_cost: 1}
+      - {category: "(S\\NP)/NP", prior_cost: 1}
+    verb:
+      - {category: "S\\NP", prior_cost: 0}
+      - {category: "(S\\NP)/NP", prior_cost: 0}
+      - {category: "((S\\NP)/NP)/NP", prior_cost: 3}
+      - {category: "(S\\NP)/PP", prior_cost: 2}
+      - {category: "(S\\NP)/S", prior_cost: 3}
+      - {category: "(S\\NP)/(S\\NP)", prior_cost: 3}
+    participle_modifier:
+      - {category: "N/N", prior_cost: 2}
+    coordinator:
+      - {category: "(N\\N)/N", prior_cost: 0}
+      - {category: "(NP\\NP)/NP", prior_cost: 0}
+      - {category: "(S\\S)/S", prior_cost: 1}
+      - {category: "((S\\NP)\\(S\\NP))/(S\\NP)", prior_cost: 1}
+    number:
+      - {category: "N/N", prior_cost: 0}
+      - {category: "NP", prior_cost: 1}
+    interjection:
+      - {category: "S/S", prior_cost: 0}
+      - {category: "S", prior_cost: 1}
+
+  rules:
+    # ---- lightblue English lexicon (fromNLTKtoCCG), in its pattern order ----
+    - {tag: "NNP", templates: [lb_noun_phrase]}
+    - {tag: "DT", words: ["a", "A"], templates: [lb_generalized_quantifier, determiner_supplement]}
+    - {tag: "DT", templates: [lb_determiner, determiner_pronoun]}
+    - {tag: "NN", templates: [lb_common_noun, common_noun_supplement]}
+    - {tag: "WP", templates: [lb_wh_pronoun, wh_pronoun_supplement]}
+    - {tag: "NNS", templates: [lb_intransitive_verb, plural_noun_supplement]}
+    - {tags: ["VBN", "VBD"], templates: [lb_intransitive_verb, verb_supplement]}
+    - {tag: "VBZ", templates: [lb_transitive_verb, verb_supplement]}
+    - {tag: "IN", templates: [lb_verb_phrase_modifier, preposition_supplement]}
+    - {tag: "RB", templates: [lb_verb_phrase_modifier, adverb_supplement]}
+    - {tag: "CC", words: ["and", "or"], templates: [lb_conjunction]}
+    - {tag: "CC", words: ["Either"], templates: [lb_either]}
+    - {tag: "PRP", templates: [lb_noun_phrase]}
+    - {tag: ".", templates: [lb_period]}
+    # lightblue's catch-all (w, _) -> PUNCT, kept for punctuation and symbols.
+    - {tag: ",", templates: [lb_punctuation, comma_supplement]}
+    - {tag: ":", templates: [lb_punctuation, colon_supplement]}
+    - {tags: ["``", "(", "-LRB-"], templates: [lb_punctuation, opening_bracket_supplement]}
+    - {tags: ["''", ")", "-RRB-", "$", "#", "SYM", "LS"], templates: [lb_punctuation]}
+
+    # ---- Penn Treebank tags lightblue does not map ----
+    - {tag: "NNPS", templates: [proper_noun]}
+    - {tag: "EX", templates: [pronoun]}
+    - {tags: ["PRP$", "WP$"], templates: [possessive_determiner]}
+    - {tag: "PDT", templates: [predeterminer]}
+    - {tag: "WDT", templates: [relativizer], categories: [{category: "NP/N", prior_cost: 2}]}
+    - {tag: "WRB", templates: [wh_adverb]}
+    - {tag: "POS", templates: [possessive_marker]}
+    - {tag: "JJR", templates: [adjective], categories: [{category: "AP/PP", prior_cost: 2}]}
+    - {prefix: "JJ", templates: [adjective]}                  # JJ, JJS
+    - {tags: ["RBR", "RBS"], templates: [adverb]}
+    - {tag: "RP", templates: [particle]}
+    - {tag: "TO", templates: [infinitival_to]}
+    - {tag: "MD", templates: [modal]}
+    - {tags: ["VB", "VBP"], templates: [verb]}
+    - {tag: "VBG", templates: [verb, participle_modifier], categories: [{category: "NP", prior_cost: 3}]}
+    - {tag: "CC", templates: [coordinator]}                   # CC other than and/or/Either
+    - {tag: "CD", templates: [number]}
+    - {tag: "UH", templates: [interjection]}
+    - {tag: "FW", templates: [common_noun]}
+
+    # ---- Universal POS (spaCy / Stanza) ----
+    - {tag: "PROPN", templates: [proper_noun]}
+    - {tag: "PRON", templates: [pronoun]}
+    - {tag: "NOUN", templates: [common_noun]}
+    - {tag: "DET", templates: [determiner]}
+    - {tag: "ADJ", templates: [adjective]}
+    - {tag: "VERB", templates: [verb]}
+    - {tag: "ADV", templates: [adverb]}
+    - {tag: "ADP", templates: [preposition]}
+    - {tag: "AUX", templates: [auxiliary]}
+    - {tag: "CCONJ", words: ["and", "or"], templates: [lb_conjunction]}
+    - {tag: "CCONJ", templates: [coordinator]}
+    - {tag: "SCONJ", templates: [subordinator]}
+    - {tag: "NUM", templates: [number]}
+    - {tag: "INTJ", templates: [interjection]}
+    # UPOS PUNCT is refined to PUNCT_COMMA / PUNCT_FINAL by token shape first;
+    # the same shapes are used for untagged tokens.
+    - {tags: ["PUNCT", "PUNCT_COMMA"], templates: [lb_punctuation, comma_supplement]}
+    - {tag: "PUNCT_FINAL", templates: [lb_period]}
+
+seed_lexicon:
+  the:
+    - {category: "NP/N", prior_cost: 0, lock: true}
+  a:
+    # lightblue ("a", DT): a generalized quantifier over subjects.
+    - {category: "(S/(S\\NP))/N", prior_cost: 0, lock: true}
+    - {category: "NP/N", prior_cost: 1, lock: false}
+  an:
+    - {category: "NP/N", prior_cost: 0, lock: true}
+  of:
+    - {category: "(N\\N)/NP", prior_cost: 1, lock: false}
+    - {category: "PP/NP", prior_cost: 2, lock: false}
+  in:
+    - {category: "PP/NP", prior_cost: 1, lock: false}
+  to:
+    - {category: "PP/NP", prior_cost: 2, lock: false}
+  not:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  is:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  was:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  were:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  are:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  be:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  am:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+    - {category: "(S\\NP)/NP", prior_cost: 1, lock: false}
+  been:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  has:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  have:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  had:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  do:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  does:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  did:
+    - {category: "(S\\NP)/(S\\NP)", prior_cost: 0, lock: false}
+  # Punctuation uses Application-compatible categories (no absorption rules).
+  ",":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+    - {category: "(S\\S)/S", prior_cost: 2, lock: false}
+    - {category: "NP\\NP", prior_cost: 2, lock: false}
+    - {category: "N\\N", prior_cost: 3, lock: false}
+  "!":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+  "?":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+  "，":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+    - {category: "(S\\S)/S", prior_cost: 2, lock: false}
+  "！":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+  "？":
+    - {category: "S\\S", prior_cost: 0, lock: true}
+
+training:
+  seed: 42
+  compression_interval: 100
+  unresolved_policy: queue

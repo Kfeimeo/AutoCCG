@@ -14,7 +14,7 @@ import CCG.Category (CategoryId, categoryArity, categoryDepth, categorySlashCoun
 import CCG.CategoryStore (CategoryStore, lookupCategory)
 import CCG.Combinator (Combinator (..), applicationResults, argumentSwap, compositionResults)
 import CCG.Derivation
-  ( DerivationArena, DerivationNode (..), DerivationRef, addDerivation, emptyArena )
+  ( DerivationNode (..), addDerivation, emptyArena )
 import CCG.SpecialRules
   ( SpecialCategories (..), coordination, periodAbsorption, punctuationAbsorption )
 import CCG.TypeRaising (TypeRaisingTemplate (..), raiseCategory)
@@ -29,19 +29,11 @@ import Data.Text (Text)
 import Lexicon.Types (Lexicon, categoriesForWord)
 import Lexicon.Candidate (boundedCategoryUniverse)
 import Parser.Config
-import Parser.FailureFrontier (ParseFailure, makeFailure)
+import Parser.FailureFrontier (makeFailure)
+import Parser.Eisner (parseEisner)
+import Parser.Outcome (ParseOutcome (..), ParseSuccess (..))
 import Parser.State
 
-data ParseSuccess = ParseSuccess
-  { successfulLevel :: !ParseLevel
-  , rootDerivation :: !DerivationRef
-  , successfulCost :: !ParseCost
-  , parseCount :: !Int
-  , finalArena :: !DerivationArena
-  , finalStore :: !CategoryStore
-  } deriving (Eq, Show)
-
-data ParseOutcome = Parsed !ParseSuccess | Failed !ParseFailure deriving (Eq, Show)
 
 -- | The rule behind one reduction.  Coordination and the two absorption rules
 -- belong to the Application level: they are available at every parser level
@@ -61,7 +53,9 @@ data Reduction = Reduction
   } deriving (Eq, Show)
 
 parseSentence :: Config -> CategoryStore -> Lexicon -> GrammarRules -> CategoryId -> [Text] -> ParseOutcome
-parseSentence config store lexicon grammarRules root tokens = tryLevels (parserLevels config)
+parseSentence config store lexicon grammarRules root tokens = case parserAlgorithm (parser config) of
+  EisnerNormalForm -> parseEisner config store lexicon root tokens
+  ShiftReduce -> tryLevels (parserLevels config)
   where
     tryLevels [] = Failed (makeFailure tokens [])
     tryLevels (level : levels) = case runParser config level store lexicon grammarRules root tokens of
@@ -76,7 +70,7 @@ runParser config level initialStore lexicon grammarRules root tokens =
       complete = [state | state <- states, map itemCategory (categoryStack state) == [root]]
    in case sortBy (comparing parseCost <> comparing semanticKey) complete of
         winner : _ -> case categoryStack winner of
-          item : _ -> Parsed (ParseSuccess level (itemDerivation item) (parseCost winner) (boundedParseCount winner) arena finalStore')
+          item : _ -> Parsed (ParseSuccess level (itemDerivation item) (parseCost winner) (boundedParseCount winner) arena finalStore' [])
           [] -> Failed (makeFailure tokens failureFrontier)
         [] -> Failed (makeFailure tokens failureFrontier)
   where
@@ -302,23 +296,8 @@ pairReductions config level grammarRules store (left, leftRaisable) (right, righ
                 | otherwise = compositionResults degree raisedStore left raisedId
            in ( acc ++ [Reduction (CombinatorRule combinator) result True | (combinator, result) <- composed, compositionEnabled combinator]
               , composedStore )
-    applicationEnabled ForwardApplication = allowForwardApplication ruleConfig
-    applicationEnabled BackwardApplication = allowBackwardApplication ruleConfig
-    applicationEnabled _ = False
-    compositionEnabled combinator = case combinator of
-      ForwardComposition -> allowForwardComposition ruleConfig
-      BackwardComposition -> allowBackwardComposition ruleConfig
-      ForwardCrossedComposition -> allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
-      BackwardCrossedComposition -> allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
-      ForwardGeneralizedComposition -> allowForwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
-      BackwardGeneralizedComposition -> allowBackwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
-      ForwardGeneralizedCrossedComposition ->
-        allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
-          && allowGeneralizedComposition ruleConfig
-      BackwardGeneralizedCrossedComposition ->
-        allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
-          && allowGeneralizedComposition ruleConfig
-      _ -> False
+    applicationEnabled = combinatorEnabled ruleConfig
+    compositionEnabled = combinatorEnabled ruleConfig
 
 withinCategoryBounds :: Config -> CategoryStore -> CategoryId -> Bool
 withinCategoryBounds config store categoryId =

@@ -130,7 +130,7 @@ runCommand selectedCommand = case selectedCommand of
     grammar <- requireGrammar grammarPath
     let sentenceTokens = Text.words sentence
     case parseSentence config (grammarCategories grammar) (grammarLexicon grammar) (grammarRules grammar) (rootCategory grammar) sentenceTokens of
-      Parsed success -> Lazy.putStr (encode (derivationSummary success) <> "\n")
+      Parsed success -> Lazy.putStr (encode (derivationSummary (grammarAtoms grammar) success) <> "\n")
       Failed failure -> do
         let diagnosticSentence = Sentence "<command-line>" sentenceTokens sentenceTokens [] [] Map.empty []
             diagnostic = case sentenceCoverageDetailsWithJobs 1 config grammar [diagnosticSentence] of

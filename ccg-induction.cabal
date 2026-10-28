@@ -42,6 +42,8 @@ library
       Parser.State
       Parser.Beam
       Parser.Incremental
+      Parser.Outcome
+      Parser.Eisner
       Parser.FailureFrontier
       Parser.ParseCount
       Serialization.Grammar
@@ -78,7 +80,7 @@ test-suite ccg-induction-test
   type: exitcode-stdio-1.0
   hs-source-dirs: test
   main-is: Main.hs
-  other-modules: CategorySpec CandidateLexiconSpec CombinatorSpec ParserSpec RepairSpec CompressionSpec InductionSpec PropertySpec PosMappingSpec
+  other-modules: CategorySpec CandidateLexiconSpec CombinatorSpec ParserSpec RepairSpec CompressionSpec InductionSpec PropertySpec PosMappingSpec EisnerSpec
   build-depends:
       aeson,
       base,

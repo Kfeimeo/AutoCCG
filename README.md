@@ -562,6 +562,54 @@ Otherwise, when `use_wordnet_inventory` is enabled and an inventory is given by
 POS of the lemma is used. When candidate constraints are disabled, legacy
 initialization assigns the lowest-prior category of the matching rule.
 
+### Eisner normal-form parser
+
+`parser.algorithm: eisner` replaces the shift-reduce parser with an exhaustive
+CKY chart parser over Application and Composition only, constrained by
+Eisner's (1996) normal form: a constituent produced by forward Composition
+(`>B`, `>Bn`) is never the primary, left functor of a forward rule, and a
+constituent produced by backward Composition is never the primary, right
+functor of a backward rule. With only Application and Composition this removes
+spurious ambiguity, so each derivation of the root is a distinct semantic
+reading. Unlike the shift-reduce parser, Application never blocks Composition
+on the same pair, and there is no beam: the chart is exact.
+
+`parser.derivations` chooses what is kept:
+
+| value | kept derivations |
+|---|---|
+| `first` (default) | one lowest-cost derivation (fewest Composition uses, then fewest steps) |
+| `all` | every normal-form derivation, i.e. every reading, up to `parse_count_cap` |
+
+`parse_count` always reports the number of readings (capped). `parse` prints
+the kept trees under `derivations` (summary version 2), for example with
+`derivations: all`:
+
+```text
+John saw Mary with telescopes   ->  parse_count 2
+  [John [saw [Mary [with telescopes]]]]      NP attachment
+  [John [[saw Mary] [with telescopes]]]      VP attachment
+```
+
+`configs/eisner.yaml` is a ready configuration: forward and backward B and B^2,
+no crossed Composition, and `derivations: first`. Type-raising, ASP,
+coordination, and absorption are not part of the Eisner parser; configuration
+loading rejects `algorithm: eisner` while any of those rule switches is on. The
+configuration therefore replaces lightblue's `CONJ`, `PERIOD`, and `PUNCT`
+categories with Application-compatible ones (`.` as `S\S`, `and`/`or` as
+`(NP\NP)/NP` and similar). Training, repair, and evaluation work unchanged: a
+failed chart parse reports the same failure frontier as the shift-reduce
+parser. The shift-reduce parser still records only lexical nodes, so its
+`parse` output has no `derivations`.
+
+```bash
+cabal run ccg-induction -- train \
+  --corpus data/processed/train-pos.jsonl \
+  --config configs/eisner.yaml \
+  --candidate-lexicon data/processed/candidate_lexicon.json \
+  --output runs/eisner
+```
+
 ### Argument swap (ASP)
 
 `rules.allow_argument_swap` enables ASP, a unary rule that exchanges the order

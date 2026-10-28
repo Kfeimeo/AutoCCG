@@ -489,6 +489,46 @@ spaCy 和 Stanza 输出的 Universal POS 标签。扁平的 `pos_to_categories: 
 则使用该 lemma 的所有 WordNet POS。禁用候选约束时，旧版初始化会为匹配规则分配
 先验代价最低的范畴。
 
+### Eisner 范式解析器
+
+`parser.algorithm: eisner` 用一个只含函数应用和组合的穷举 CKY 图表解析器替换移进-归约
+解析器，并施加 Eisner (1996) 的范式约束：由前向组合（`>B`、`>Bn`）产生的成分，永远不作为
+前向规则左侧的主函子；由后向组合产生的成分，永远不作为后向规则右侧的主函子。在只有应用
+和组合的语法里，这可以消除伪歧义，因此根节点的每个推导都对应一种不同的语义解读。与移进-
+归约解析器不同，这里函数应用不会挡住同一相邻对上的组合，也没有 beam，图表是精确的。
+
+`parser.derivations` 决定保留哪些推导：
+
+| 取值 | 保留的推导 |
+|---|---|
+| `first`（默认） | 一个代价最低的推导（组合次数最少，其次推导步数最少） |
+| `all` | 所有范式推导，即所有语义解读，数量受 `parse_count_cap` 限制 |
+
+`parse_count` 总是报告解读的数量（有上限）。`parse` 会在 `derivations` 字段输出保留的推导树
+（汇总格式版本 2），例如 `derivations: all` 时：
+
+```text
+John saw Mary with telescopes   ->  parse_count 2
+  [John [saw [Mary [with telescopes]]]]      名词短语挂靠
+  [John [[saw Mary] [with telescopes]]]      动词短语挂靠
+```
+
+`configs/eisner.yaml` 是现成的配置：前向和后向的 B 与 B²，不含交叉组合，
+`derivations: first`。类型提升、ASP、并列和吸收规则都不属于 Eisner 解析器；只要这些开关
+有任何一个开着，`algorithm: eisner` 在加载配置时就会被拒绝。因此该配置把 lightblue 的
+`CONJ`、`PERIOD`、`PUNCT` 换成了只靠函数应用即可组合的范畴（`.` 为 `S\S`，`and`/`or`
+为 `(NP\NP)/NP` 等）。训练、修复和评估都可以直接使用：图表解析失败时，会给出与移进-归约
+解析器相同格式的失败前沿。移进-归约解析器目前仍只记录词汇节点，所以它的 `parse` 输出没有
+`derivations` 字段。
+
+```bash
+cabal run ccg-induction -- train \
+  --corpus data/processed/train-pos.jsonl \
+  --config configs/eisner.yaml \
+  --candidate-lexicon data/processed/candidate_lexicon.json \
+  --output runs/eisner
+```
+
 ### 参数交换（ASP）
 
 `rules.allow_argument_swap` 开启 ASP。这是一条一元规则：当一个范畴最外两层参数

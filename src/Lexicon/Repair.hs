@@ -14,7 +14,7 @@ module Lexicon.Repair
 
 import CCG.Category (CategoryId (..), categorySlashCount)
 import CCG.CategoryStore (lookupCategory)
-import CCG.Combinator (Combinator (..), applicationResults, compositionResults)
+import CCG.Combinator (applicationResults, compositionResults)
 import Control.Parallel.Strategies (parListChunk, rdeepseq, using)
 import Corpus.Types (Sentence (..))
 import Data.List (sortOn)
@@ -162,23 +162,7 @@ locallyFeasible config (Just failure) grammar candidateId
         || not (null (applicationResults store neighbor candidateId))
         || any (compositionEnabled . fst) (fst (compositionResults (maxCompositionDegree ruleConfig) store candidateId neighbor))
         || any (compositionEnabled . fst) (fst (compositionResults (maxCompositionDegree ruleConfig) store neighbor candidateId))
-    compositionEnabled ForwardComposition = allowForwardComposition ruleConfig
-    compositionEnabled BackwardComposition = allowBackwardComposition ruleConfig
-    compositionEnabled ForwardCrossedComposition =
-      allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
-    compositionEnabled BackwardCrossedComposition =
-      allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
-    compositionEnabled ForwardGeneralizedComposition =
-      allowForwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
-    compositionEnabled BackwardGeneralizedComposition =
-      allowBackwardComposition ruleConfig && allowGeneralizedComposition ruleConfig
-    compositionEnabled ForwardGeneralizedCrossedComposition =
-      allowForwardComposition ruleConfig && allowCrossedComposition ruleConfig
-        && allowGeneralizedComposition ruleConfig
-    compositionEnabled BackwardGeneralizedCrossedComposition =
-      allowBackwardComposition ruleConfig && allowCrossedComposition ruleConfig
-        && allowGeneralizedComposition ruleConfig
-    compositionEnabled _ = False
+    compositionEnabled = combinatorEnabled ruleConfig
     ruleConfig = rules config
 
 unknownFallbackProposals :: Config -> Sentence -> Grammar -> [(RepairScore, RepairProposal)]

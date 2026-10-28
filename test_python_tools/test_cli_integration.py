@@ -182,6 +182,36 @@ class RuleConfigCliIntegrationTest(unittest.TestCase):
             self.assertEqual(level, "WithArgumentSwap")
             self.assertIn("config.snapshot.yaml", stderr)
 
+    def test_eisner_parser_outputs_first_or_all_readings(self) -> None:
+        grammar = {
+            "version": 1, "root": "S",
+            "lexicon": {
+                "John": ["NP"], "Mary": ["NP"], "telescopes": ["NP"], "saw": ["(S\\NP)/NP"],
+                "with": ["((S\\NP)\\(S\\NP))/NP", "(NP\\NP)/NP"],
+            },
+        }
+        only_application_and_composition = {
+            "allow_coordination": False, "allow_period_absorption": False,
+            "allow_punctuation_absorption": False, "allow_argument_swap": False,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "grammar.json").write_text(json.dumps(grammar), encoding="utf-8")
+            counts = {}
+            for mode in ("first", "all"):
+                config = root / f"{mode}.yaml"
+                config.write_text(json.dumps({
+                    "parser": {"algorithm": "eisner", "derivations": mode},
+                    "rules": only_application_and_composition,
+                }), encoding="utf-8")
+                completed = run_cli("parse", "--grammar", str(root / "grammar.json"), "--config", str(config),
+                                    "--sentence", "John saw Mary with telescopes")
+                summary = json.loads(completed.stdout)
+                self.assertEqual(summary["parse_count"], 2)
+                counts[mode] = len(summary["derivations"])
+                self.assertEqual(summary["derivations"][0]["category"], "S")
+            self.assertEqual(counts, {"first": 1, "all": 2})
+
     def test_inspect_candidates_uses_config_bounds(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             candidates = Path(directory) / "candidates.json"
