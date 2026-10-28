@@ -21,16 +21,16 @@ tests :: TestTree
 tests = testGroup "induction"
   [ testCase "parallel training preserves deterministic result" $ do
       let corpus =
-            [ Sentence "s1" ["Hello"] [] [] [] Map.empty
-            , Sentence "s2" ["Goodbye"] [] [] [] Map.empty
+            [ Sentence "s1" ["Hello"] [] [] [] Map.empty []
+            , Sentence "s2" ["Goodbye"] [] [] [] Map.empty []
             ]
       trainCorpusWithJobs 2 defaultConfig corpus @?=
         trainCorpusWithJobs 1 defaultConfig corpus
   , testCase "progress callback observes each sentence in corpus order" $ do
       observed <- newIORef []
       let corpus =
-            [ Sentence "s1" ["Hello"] [] [] [] Map.empty
-            , Sentence "s2" ["Goodbye"] [] [] [] Map.empty
+            [ Sentence "s1" ["Hello"] [] [] [] Map.empty []
+            , Sentence "s2" ["Goodbye"] [] [] [] Map.empty []
             ]
       result <- trainCorpusWithProgress 2
         (\completed total metric ->

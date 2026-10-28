@@ -4,7 +4,8 @@ module PosMappingSpec (tests) where
 
 import CCG.Atom (AtomTable)
 import CCG.CategoryStore (CategoryStore, prettyCategory)
-import Corpus.Types (Sentence (..))
+import Corpus.Types (PosCandidate (..), Sentence (..))
+import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -108,6 +109,34 @@ tests = testGroup "POS mapping"
           assertElem "AP/PP" (categoriesOf "bigger")
           take 1 (categoriesOf "will") @?= ["(S\\NP)/(S\\NP)"]
           assertBool "non-lightblue CC must not become CONJ" ("CONJ" `notElem` categoriesOf "but")
+  , testCase "ranked pos_candidates replace the single tag, with rank offsets and sources" $ do
+      let config = enabledConfig
+            { atoms = AtomConfig ["S", "NP", "N", "PP", "CONJ"] 8
+            , posMapping = posMappingFromTable (Map.fromList
+                [ ("NN", [CandidateTemplateConfig "N" 0])
+                , ("VB", [CandidateTemplateConfig "S\\NP" 0, CandidateTemplateConfig "(S\\NP)/NP" 1])
+                , ("CC", [CandidateTemplateConfig "CONJ" 0])
+                ])
+            }
+          ranked = [[PosCandidate "NN" False, PosCandidate "VB" True], [PosCandidate "DT" False, PosCandidate "CC" False]]
+          corpus = [(sentenceWith ["book", "Either"] [] ["NN", "DT"]) { posCandidates = ranked }]
+      withCandidates config emptyWordNetInventory corpus $ \atoms store candidates -> do
+        let summary word = [ (category, candidatePriorCost candidate, candidateSource candidate)
+                           | candidate <- candidateCategoriesForWord word candidates
+                           , category <- render atoms store [candidate] ]
+        summary "book" @?= [("N", 0, FromPosTemplate), ("S\\NP", 1, FromWordNetPos), ("(S\\NP)/NP", 2, FromWordNetPos)]
+        summary "Either" @?= [("CONJ", 1, FromPosTemplate)]
+      let singleTag = config { candidateConstraints = (candidateConstraints config) { usePosCandidates = False } }
+      withCandidates singleTag emptyWordNetInventory corpus $ \atoms store candidates ->
+        render atoms store (candidateCategoriesForWord "book" candidates) @?= ["N"]
+  , testCase "pos_candidates are read from and written to corpus JSON" $ do
+      let line = "{\"sentence_id\":\"s\",\"tokens\":[\"book\"],\"pos\":[\"NN\"],\
+                 \\"pos_candidates\":[[{\"tag\":\"NN\",\"source\":\"nltk\"},{\"tag\":\"VB\",\"source\":\"wordnet\"}]]}"
+      case Aeson.eitherDecodeStrict line of
+        Left message -> assertFailure message
+        Right parsed -> do
+          posCandidates parsed @?= [[PosCandidate "NN" False, PosCandidate "VB" True]]
+          Aeson.decode (Aeson.encode parsed) @?= Just parsed
   , testCase "WordNet POS is used only for tokens without corpus POS" $ do
       let config = enabledConfig
             { posMapping = posMappingFromTable (Map.singleton "NOUN" [CandidateTemplateConfig "N" 0])
@@ -171,7 +200,7 @@ withCandidates config inventory corpus check =
 
 sentenceWith :: [Text] -> [Text] -> [Text] -> Sentence
 sentenceWith words' lemmas' pos =
-  Sentence "s" words' (if null lemmas' then words' else lemmas') pos [] Map.empty
+  Sentence "s" words' (if null lemmas' then words' else lemmas') pos [] Map.empty []
 
 render :: AtomTable -> CategoryStore -> [CandidateCategory] -> [Text]
 render atoms store = map (either (const "<?>") id . prettyCategory atoms store . candidateCategoryId)

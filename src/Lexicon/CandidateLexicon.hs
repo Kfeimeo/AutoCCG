@@ -23,12 +23,12 @@ module Lexicon.CandidateLexicon
 import CCG.Atom (AtomTable, addConfiguredAtoms, atomCount)
 import CCG.Category (CategoryId, categoryArity, categoryDepth, categorySlashCount)
 import CCG.CategoryStore (CategoryStore, lookupCategory, parseCategory)
-import Corpus.Types (Sentence (..))
+import Corpus.Types (PosCandidate (..), Sentence (..))
 import Control.Monad (foldM)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Char (isDigit)
-import Data.List (partition, sortOn)
+import Data.List (partition, sortOn, zip4)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -217,22 +217,34 @@ buildCandidateLexiconFromConfig config inventory corpus atoms store = do
           let updated = map (\candidate -> if candidateCategoryId candidate == categoryId then candidate { candidateLocked = True } else candidate)
               CandidateLexicon entries = lexicon
           Right (atoms0, store0, CandidateLexicon (Map.adjust updated word entries))
-    addSentence state sentence = foldM addToken state (zip3 (tokens sentence) paddedLemmas paddedPos)
+    addSentence state sentence = foldM addToken state
+        (zip4 (tokens sentence) paddedLemmas paddedPos paddedCandidates)
       where
         paddedPos = posTags sentence ++ repeat ""
         paddedLemmas = lemmas sentence ++ drop (length (lemmas sentence)) (tokens sentence)
-    addToken state (word, lemma, pos) = do
+        paddedCandidates = posCandidates sentence ++ repeat []
+    -- Evidence is (tag, source, prior cost offset).  Ranked candidates from
+    -- the corpus take precedence over the single POS tag; the i-th of them
+    -- adds i * pos_candidate_rank_cost to its templates.
+    addToken state (word, lemma, pos, ranked) = do
       let shape = inferShapePos word
+          rankCost = posCandidateRankCost constraints
           evidence
-            | pos == "PUNCT" && not (Text.null shape) = [(shape, FromPosTemplate)]
-            | not (Text.null pos) = [(pos, FromPosTemplate)]
-            | not (Text.null shape) = [(shape, FromUnknownFallback)]
+            | usePosCandidates constraints && not (null ranked) =
+                [ (posCandidateTag candidate, rankedSource candidate, rank * rankCost)
+                | (rank, candidate) <- zip [0 ..] ranked
+                ]
+            | pos == "PUNCT" && not (Text.null shape) = [(shape, FromPosTemplate, 0)]
+            | not (Text.null pos) = [(pos, FromPosTemplate, 0)]
+            | not (Text.null shape) = [(shape, FromUnknownFallback, 0)]
             | useWordNetInventory constraints =
-                [(tag, FromWordNetPos) | tag <- Map.findWithDefault [] (Text.toLower lemma) inventory]
+                [(tag, FromWordNetPos, 0) | tag <- Map.findWithDefault [] (Text.toLower lemma) inventory]
             | otherwise = []
-          addEvidence current (tag, source) = case resolvePosTemplates (posMapping config) word tag of
+          rankedSource candidate = if posCandidateFromWordNet candidate then FromWordNetPos else FromPosTemplate
+          addEvidence current (tag, source, offset) = case resolvePosTemplates (posMapping config) word tag of
             Nothing -> Right current
-            Just templates -> addConfigured word source current templates
+            Just templates -> addConfigured word source current
+              [template { templatePriorCost = templatePriorCost template + offset } | template <- templates]
       withPos <- foldM addEvidence state evidence
       if useSeedLexicon constraints
         then case Map.lookup (Text.toLower word) (seedLexicon config) of

@@ -75,6 +75,11 @@ data CandidateConstraintsConfig = CandidateConstraintsConfig
   , unknownPolicy :: !Text
   , maxCandidatesPerWord :: !Int
   , rejectCandidatesOutsideCategoryBounds :: !Bool
+  , usePosCandidates :: !Bool
+  -- ^ Use ranked per-token @pos_candidates@ when the corpus provides them.
+  , posCandidateRankCost :: !Int
+  -- ^ Prior cost added per rank: the i-th candidate tag (0-based) adds
+  -- @i * pos_candidate_rank_cost@ to its templates' prior costs.
   } deriving (Eq, Show, Generic)
 
 data SeedEntryConfig = SeedEntryConfig
@@ -117,7 +122,7 @@ defaultConfig = Config
   (GrammarConfig 16 32 2)
   (RuleConfig True True True True False False 2 True True True False)
   (TrainingConfig 42 100 "queue")
-  (CandidateConstraintsConfig False Nothing True Nothing True True "small_default" 8 True)
+  (CandidateConstraintsConfig False Nothing True Nothing True True "small_default" 8 True True 1)
   emptyPosMapping
   Map.empty
   (InitializationConfig True True False 0)
@@ -163,6 +168,13 @@ instance FromJSON CandidateConstraintsConfig where
     <*> o .:? "use_seed_lexicon" .!= True <*> o .:? "unknown_policy" .!= "small_default"
     <*> o .:? "max_candidates_per_word" .!= 8
     <*> o .:? "reject_candidates_outside_category_bounds" .!= True
+    <*> o .:? "use_pos_candidates" .!= True
+    <*> (o .:? "pos_candidate_rank_cost" .!= 1 >>= nonNegativeRankCost)
+    where
+      nonNegativeRankCost cost
+        | cost >= 0 = pure cost
+        | otherwise = fail "candidate_constraints.pos_candidate_rank_cost must be non-negative"
+
 instance FromJSON SeedEntryConfig where
   parseJSON = withObject "seed lexicon entry" $ \o -> SeedEntryConfig
     <$> o .:? "category" .!= "" <*> o .:? "prior_cost" .!= 0 <*> o .:? "lock" .!= False

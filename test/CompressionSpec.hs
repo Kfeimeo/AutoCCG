@@ -19,6 +19,6 @@ tests = testGroup "compression"
         Left message -> assertFailure (show message)
         Right (np, grammar) -> do
           let grammar' = grammar { grammarLexicon = insertEntry "unused" np (grammarLexicon grammar) }
-              corpus = [Sentence "s" ["known"] ["known"] [] [] Map.empty]
+              corpus = [Sentence "s" ["known"] ["known"] [] [] Map.empty []]
           categoriesForWord "unused" (grammarLexicon (compressGrammar defaultConfig corpus grammar')) @?= []
   ]

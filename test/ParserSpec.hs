@@ -301,8 +301,8 @@ tests = testGroup "parser"
   , testCase "parallel coverage preserves input order and results" $ do
       grammar <- toyGrammar
       let corpus =
-            [ Sentence "covered" ["John", "likes", "Mary"] [] [] [] Map.empty
-            , Sentence "uncovered" ["Nobody"] [] [] [] Map.empty
+            [ Sentence "covered" ["John", "likes", "Mary"] [] [] [] Map.empty []
+            , Sentence "uncovered" ["Nobody"] [] [] [] Map.empty []
             ]
       sentenceCoverageWithJobs 1 defaultConfig grammar corpus @?=
         sentenceCoverageWithJobs 2 defaultConfig grammar corpus
@@ -311,7 +311,7 @@ tests = testGroup "parser"
   , testCase "sentence coverage reports token and word-type lexical coverage" $ do
       grammar <- toyGrammar
       let corpus =
-            [ Sentence "partly-known" ["John", "Nobody", "Nobody"] [] [] [] Map.empty ]
+            [ Sentence "partly-known" ["John", "Nobody", "Nobody"] [] [] [] Map.empty [] ]
       case sentenceCoverageDetailsWithJobs 1 defaultConfig grammar corpus of
         [result] -> do
           coverageCovered result @?= False

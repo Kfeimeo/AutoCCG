@@ -550,7 +550,11 @@ produced by spaCy and Stanza. The flat `pos_to_categories: {TAG: [...]}` table
 is still accepted as shorthand for exact-tag rules tried after
 `pos_mapping.rules`.
 
-Per token, the tag driving the cascade is the corpus POS (UPOS `PUNCT` is
+Per token, the tags driving the cascade are the ranked `pos_candidates` when
+the corpus provides them and `candidate_constraints.use_pos_candidates` is on:
+the i-th tag (0-based) adds `i * pos_candidate_rank_cost` to its templates'
+prior costs, and tags marked as coming from WordNet are recorded with source
+`FromWordNetPos`. Otherwise the single corpus POS is used (UPOS `PUNCT` is
 refined by token shape). Without POS, a closed-form token shape is used.
 Otherwise, when `use_wordnet_inventory` is enabled and an inventory is given by
 `candidate_constraints.wordnet_inventory_path` or `--wordnet`, every WordNet
@@ -685,6 +689,27 @@ The enrichment step preserves the existing tokenization and writes `lemmas`,
 `pos` (Penn Treebank tags for NLTK, Universal POS for spaCy/Stanza), and
 `morph` (empty for NLTK). If the tagger changes token alignment,
 the script fails instead of silently rewriting the sentence.
+
+The NLTK backend also writes ranked `pos_candidates` per token, best first,
+each with a `source` of `nltk` or `wordnet`, while `pos` keeps NLTK's single
+best tag:
+
+- Function words, proper nouns, numbers, and punctuation (NLTK's best tag is
+  not a noun, verb, adjective, or adverb tag) get NLTK's top-k tags by
+  perceptron score (`--top-k`, default 3), dropping non-best tags below
+  `--min-probability` (default 0.01). Words in NLTK's tag dictionary are
+  unambiguous to NLTK and keep one tag.
+- Content words get NLTK's best tag, then every other Penn Treebank tag that
+  WordNet allows for the word form over all senses, with inflection read from
+  WordNet's base forms (`sleeps` gives `NNS` and `VBZ`, `ran` gives `VBD` and
+  `VBN`), ordered by NLTK's score. Words absent from WordNet fall back to
+  NLTK's top-k tags. `--no-wordnet-expansion` uses top-k for every word.
+
+WordNet is not consulted for function words because it lists rare homographs
+for many of them (`a` as angstrom, `or` as Oregon, `in` as inch), and it has no
+proper-noun or closed-class tags. For example, `They book a flight` yields
+`book/NN|VB|VBP`, so the verb reading of `book`, which NLTK's tag dictionary
+never produces, is available to lexical repair.
 
 Build an optional WordNet lemma/POS inventory. NLTK and WordNet data are still
 explicit dependencies here; the script verifies they are installed and never

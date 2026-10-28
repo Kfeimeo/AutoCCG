@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The NLTK backend of `enrich_with_pos.py` writes ranked per-token
+  `pos_candidates`: NLTK top-k tags for function words, proper nouns, numbers,
+  and punctuation; NLTK's best tag plus every WordNet-allowed Penn Treebank tag
+  for content words, falling back to top-k when WordNet lacks the word
+  (`--top-k`, `--min-probability`, `--no-wordnet-expansion`). `pos` is
+  unchanged.
+- Sentences read optional `pos_candidates`; candidate building uses them when
+  `candidate_constraints.use_pos_candidates` is on, adding
+  `rank * pos_candidate_rank_cost` to prior costs and recording WordNet tags as
+  `FromWordNetPos`.
 - `evaluate` and `parse` accept `--config`; without it they use the training
   `config.snapshot.yaml` next to the grammar, falling back to built-in
   defaults, and report the choice on stderr. `inspect-candidates` accepts

@@ -132,7 +132,7 @@ runCommand selectedCommand = case selectedCommand of
     case parseSentence config (grammarCategories grammar) (grammarLexicon grammar) (grammarRules grammar) (rootCategory grammar) sentenceTokens of
       Parsed success -> Lazy.putStr (encode (derivationSummary success) <> "\n")
       Failed failure -> do
-        let diagnosticSentence = Sentence "<command-line>" sentenceTokens sentenceTokens [] [] Map.empty
+        let diagnosticSentence = Sentence "<command-line>" sentenceTokens sentenceTokens [] [] Map.empty []
             diagnostic = case sentenceCoverageDetailsWithJobs 1 config grammar [diagnosticSentence] of
               result : _ -> renderCoverageLine grammar result
               [] -> "parse failed at token position " <> Text.pack (show (farthestPosition failure))

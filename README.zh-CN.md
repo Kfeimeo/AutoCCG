@@ -479,7 +479,10 @@ YAML 中请给标签和范畴加引号：裸写的 `N` 会被解析为布尔值�
 spaCy 和 Stanza 输出的 Universal POS 标签。扁平的 `pos_to_categories: {TAG: [...]}`
 表仍被接受，作为在 `pos_mapping.rules` 之后尝试的精确标签规则的简写。
 
-对每个 token，驱动级联的标签是语料 POS（UPOS `PUNCT` 会按 token 形状细化）。
+对每个 token，若语料提供了排名的 `pos_candidates` 且开启了
+`candidate_constraints.use_pos_candidates`，则用这些标签驱动级联：第 i 个标签（从 0 开始）
+给其模板的先验代价加上 `i * pos_candidate_rank_cost`，来自 WordNet 的标签记录为来源
+`FromWordNetPos`。否则使用单个语料 POS（UPOS `PUNCT` 会按 token 形状细化）。
 没有 POS 时使用封闭形式的 token 形状。否则，若启用了 `use_wordnet_inventory`，
 并通过 `candidate_constraints.wordnet_inventory_path` 或 `--wordnet` 提供了清单，
 则使用该 lemma 的所有 WordNet POS。禁用候选约束时，旧版初始化会为匹配规则分配
@@ -599,6 +602,23 @@ python python_tools/enrich_with_pos.py `
 
 增强步骤会保留既有分词，并写出 `lemmas`、`pos`（NLTK 为 Penn Treebank 标签，
 spaCy/Stanza 为 Universal POS）以及 `morph`（NLTK 下为空）。如果标注器改变了 token 对齐，脚本会失败，而不是静默改写句子。
+
+NLTK 后端还会为每个 token 写出排名的 `pos_candidates`（首选在前，每个标签带 `source`：
+`nltk` 或 `wordnet`），`pos` 仍保留 NLTK 的单个首选标签：
+
+- 功能词、专有名词、数词和标点（NLTK 首选标签不是名词、动词、形容词或副词标签）：
+  取 NLTK 感知机打分前 k 个标签（`--top-k`，默认 3），非首选标签中概率低于
+  `--min-probability`（默认 0.01）的会被丢弃。NLTK 标签词典中的词在 NLTK 看来没有歧义，
+  只保留一个标签。
+- 实词：先放 NLTK 的首选标签，再按 NLTK 打分依次放入 WordNet 对该词形（所有词义）允许的
+  其他 Penn Treebank 标签；屈折形式由 WordNet 的原形推出（`sleeps` 得到 `NNS` 和 `VBZ`，
+  `ran` 得到 `VBD` 和 `VBN`）。WordNet 中查不到的词回退到 NLTK 的前 k 个标签。
+  `--no-wordnet-expansion` 会让所有词都使用前 k 个标签。
+
+功能词不查 WordNet，因为 WordNet 对其中很多词只收录了罕见的同形实词（`a` 是埃，
+`or` 是俄勒冈，`in` 是英寸），也没有专有名词和封闭词类标签。例如 `They book a flight`
+会得到 `book/NN|VB|VBP`，于是 NLTK 标签词典永远不会给出的 `book` 的动词用法，
+也能在词汇修复中被启用。
 
 构建可选的 WordNet lemma/POS 清单。这里 NLTK 和 WordNet 数据仍是显式依赖；
 脚本会验证它们已安装，并且绝不会自动下载：

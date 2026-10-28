@@ -80,6 +80,7 @@ test-suite ccg-induction-test
   main-is: Main.hs
   other-modules: CategorySpec CandidateLexiconSpec CombinatorSpec ParserSpec RepairSpec CompressionSpec InductionSpec PropertySpec PosMappingSpec
   build-depends:
+      aeson,
       base,
       bytestring,
       ccg-induction,

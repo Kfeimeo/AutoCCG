@@ -197,7 +197,7 @@ enabledConfig = defaultConfig
   }
 
 sentence :: [Text] -> [Text] -> Sentence
-sentence words' pos = Sentence "s" words' words' pos [] Map.empty
+sentence words' pos = Sentence "s" words' words' pos [] Map.empty []
 
 render :: AtomTable -> CategoryStore -> [CandidateCategory] -> [Text]
 render atoms store = map (either (const "<?>" ) id . prettyCategory atoms store . candidateCategoryId)

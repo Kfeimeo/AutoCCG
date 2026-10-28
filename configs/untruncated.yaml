@@ -49,6 +49,10 @@ candidate_constraints:
   unknown_policy: small_default
   max_candidates_per_word: 2147483647
   reject_candidates_outside_category_bounds: true
+  # Ranked per-token pos_candidates (enrich_with_pos.py --backend nltk): the
+  # i-th tag adds i * pos_candidate_rank_cost to its templates' prior costs.
+  use_pos_candidates: true
+  pos_candidate_rank_cost: 1
 
 initialization:
   use_locked_seed_entries: true

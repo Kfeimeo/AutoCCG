@@ -9,7 +9,7 @@ import qualified Data.Text as Text
 
 fromPlainText :: Text -> [Sentence]
 fromPlainText contents =
-  [ Sentence ("line_" <> Text.pack (show lineNumber)) words' words' [] [] Map.empty
+  [ Sentence ("line_" <> Text.pack (show lineNumber)) words' words' [] [] Map.empty []
   | (lineNumber, line) <- zip [1 :: Int ..] (Text.lines contents)
   , let words' = Text.words line
   , not (null words')
