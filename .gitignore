@@ -1,0 +1,3 @@
+# Training and evaluation outputs; keep only the placeholder.
+runs/*
+!runs/.gitkeep

@@ -1,4 +1,0 @@
-{"accepted_at_sentence":null,"category":"NP","prior_cost":0,"repair_reason":"ParserValidatedOrInitialized","source":"FromPosTemplate","word":"John"}
-{"accepted_at_sentence":null,"category":"NP","prior_cost":0,"repair_reason":"ParserValidatedOrInitialized","source":"FromPosTemplate","word":"Mary"}
-{"accepted_at_sentence":null,"category":"(S\\NP)/NP","prior_cost":0,"repair_reason":"ParserValidatedOrInitialized","source":"FromPosTemplate","word":"likes"}
-{"accepted_at_sentence":null,"category":"S\\NP","prior_cost":1,"repair_reason":"ParserValidatedOrInitialized","source":"FromPosTemplate","word":"sleeps"}

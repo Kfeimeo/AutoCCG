@@ -1,1 +1,0 @@
-{"lexicon":{"f":["S/NP"],"w":["NP"]},"provenance":[{"accepted_at_sentence":null,"category":"S/NP","prior_cost":0,"repair_reason":"InitialCandidate","source":"FromPosTemplate","word":"f"},{"accepted_at_sentence":null,"category":"NP","prior_cost":0,"repair_reason":"InitialCandidate","source":"FromPosTemplate","word":"w"}],"root":"S","version":2}

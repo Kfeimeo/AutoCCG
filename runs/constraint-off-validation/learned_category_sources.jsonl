@@ -1,2 +1,0 @@
-{"accepted_at_sentence":null,"category":"NP","prior_cost":100,"repair_reason":"LegacyInitialization","source":"FromUnknownFallback","word":"f"}
-{"accepted_at_sentence":"constraint_1","category":"S\\NP","prior_cost":0,"repair_reason":"AllParserLevelsFailed","source":"FromUnknownFallback","word":"w"}

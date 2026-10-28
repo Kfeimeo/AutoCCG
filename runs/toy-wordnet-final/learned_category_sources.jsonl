@@ -1,4 +1,0 @@
-{"accepted_at_sentence":null,"category":"NP","prior_cost":0,"repair_reason":"InitialCandidate","source":"FromPosTemplate","word":"John"}
-{"accepted_at_sentence":null,"category":"NP","prior_cost":0,"repair_reason":"InitialCandidate","source":"FromPosTemplate","word":"Mary"}
-{"accepted_at_sentence":"toy_1","category":"(S\\NP)/NP","prior_cost":0,"repair_reason":"AllParserLevelsFailed","source":"FromPosTemplate","word":"likes"}
-{"accepted_at_sentence":"toy_2","category":"S\\NP","prior_cost":1,"repair_reason":"AllParserLevelsFailed","source":"FromPosTemplate","word":"sleeps"}
