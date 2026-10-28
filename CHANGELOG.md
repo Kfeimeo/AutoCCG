@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- ASP is now its own parser level, `WithArgumentSwap`, tried only after
+  Application and Composition fail and before Type-raising, instead of being
+  available from the Application level. The level is skipped when ASP is
+  disabled (`Parser.Incremental.parserLevels`).
 - The NLTK backend of `enrich_with_pos.py` writes ranked per-token
   `pos_candidates`: NLTK top-k tags for function words, proper nouns, numbers,
   and punctuation; NLTK's best tag plus every WordNet-allowed Penn Treebank tag

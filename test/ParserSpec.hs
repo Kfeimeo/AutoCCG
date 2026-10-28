@@ -237,22 +237,38 @@ tests = testGroup "parser"
       -- Type-raising and Composition, consumed only by coordination.
       grammar <- grammarWithRoot "S" lightblueLexicon
       expectParse WithTypeRaising grammar ["John", "likes", "and", "Mary", "hates", "Bill"]
-  , testCase "ASP lets a subject combine with a transitive verb at the Application level" $ do
+  , testCase "ASP lets a subject combine with a transitive verb before Type-raising" $ do
       -- read := (S\NP)/NP  ==ASP==>  (S/NP)\NP, so "John read" is S/NP by
       -- backward Application and the object relative needs no Type-raising.
+      -- ASP is a fallback after Application and Composition fail.
       grammar <- grammarWithRoot "S" relativeClauseLexicon
       let sentenceTokens = ["Mary", "saw", "the", "book", "that", "John", "read"]
           parse config = parseSentence config (grammarCategories grammar) (grammarLexicon grammar)
             (grammarRules grammar) (rootCategory grammar) sentenceTokens
       case parse aspConfig of
         Parsed success -> do
-          successfulLevel success @?= ApplicationOnly
+          successfulLevel success @?= WithArgumentSwap
           argumentSwapUses (successfulCost success) @?= 1
           typeRaisingUses (successfulCost success) @?= 0
         Failed failure -> assertFailure (show failure)
       case parse defaultConfig of
         Parsed success -> successfulLevel success @?= WithTypeRaising
         Failed failure -> assertFailure (show failure)
+  , testCase "ASP is not tried while Application or Composition succeeds" $ do
+      grammar <- grammarWithRoot "T"
+        [("left", "X/Y"), ("middle", "Y/Z"), ("consumer", "T\\(X/Z)"), ("swappable", "(T\\X)/Z")]
+      case parseSentence aspConfig (grammarCategories grammar) (grammarLexicon grammar)
+          (grammarRules grammar) (rootCategory grammar) ["left", "middle", "consumer"] of
+        Parsed success -> do
+          successfulLevel success @?= WithComposition
+          argumentSwapUses (successfulCost success) @?= 0
+        Failed failure -> assertFailure (show failure)
+      parserLevels aspConfig @?= [ApplicationOnly, WithComposition, WithArgumentSwap, WithTypeRaising]
+      parserLevels defaultConfig @?= [ApplicationOnly, WithComposition, WithTypeRaising]
+      case runParser aspConfig WithComposition (grammarCategories grammar) (grammarLexicon grammar)
+          (grammarRules grammar) (rootCategory grammar) ["swappable"] of
+        Failed failure -> length (survivingStates failure) @?= 1
+        Parsed _ -> assertFailure "unexpected parse"
   , testCase "ASP is not used when no swap is needed" $ do
       grammar <- grammarWithRoot "S" relativeClauseLexicon
       case parseSentence aspConfig (grammarCategories grammar) (grammarLexicon grammar)
@@ -263,7 +279,7 @@ tests = testGroup "parser"
       -- With an unbounded reduction budget, re-swapping would loop forever.
       grammar <- grammarWithRoot "S" [("John", "NP"), ("likes", "(S\\NP)/NP")]
       let unbounded = aspConfig { parser = (parser aspConfig) { maxReductionsPerShift = 2147483647 } }
-      case runParser unbounded ApplicationOnly (grammarCategories grammar) (grammarLexicon grammar)
+      case runParser unbounded WithArgumentSwap (grammarCategories grammar) (grammarLexicon grammar)
           (grammarRules grammar) (rootCategory grammar) ["likes"] of
         Failed failure -> length (survivingStates failure) @?= 2
         Parsed _ -> assertFailure "a transitive verb alone parsed as S"
@@ -271,7 +287,7 @@ tests = testGroup "parser"
       -- (S\NP)/(Y/Z) has depth 3; its swap (S/(Y/Z))\NP has depth 4.
       grammar <- grammarWithRoot "T" [("f", "T/(S/(Y/Z))"), ("John", "NP"), ("w", "(S\\NP)/(Y/Z)")]
       let withDepth depth = aspConfig { categories = (categories aspConfig) { maxDepth = depth } }
-          parse config = runParser config ApplicationOnly (grammarCategories grammar) (grammarLexicon grammar)
+          parse config = runParser config WithArgumentSwap (grammarCategories grammar) (grammarLexicon grammar)
             (grammarRules grammar) (rootCategory grammar) ["f", "John", "w"]
       case parse (withDepth 3) of
         Failed _ -> pure ()
@@ -287,7 +303,7 @@ tests = testGroup "parser"
       case parseSentence aspConfig (grammarCategories grammar) (grammarLexicon grammar)
           (grammarRules grammar) (rootCategory grammar) ["f", "John", "g", "h"] of
         Parsed success -> do
-          successfulLevel success @?= WithComposition
+          successfulLevel success @?= WithArgumentSwap
           argumentSwapUses (successfulCost success) @?= 1
         Failed failure -> assertFailure (show failure)
   , testCase "right reachability includes Application-derived prefixes" $ do

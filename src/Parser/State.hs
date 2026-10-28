@@ -13,7 +13,18 @@ import CCG.Derivation (DerivationRef)
 import CCG.SpecialRules (SpecialCategories)
 import CCG.TypeRaising (TypeRaisingTemplate)
 
-data ParseLevel = ApplicationOnly | WithComposition | WithTypeRaising
+-- | Parser rule levels, tried in this order.  Each level adds its rule to all
+-- rules of the levels before it; a level is tried only when every lower level
+-- fails to derive the root.
+data ParseLevel
+  = ApplicationOnly
+  -- ^ Application, plus coordination and punctuation absorption.
+  | WithComposition
+  -- ^ + Composition (harmonic, crossed, and generalized as configured).
+  | WithArgumentSwap
+  -- ^ + ASP, only when @rules.allow_argument_swap@ is on.
+  | WithTypeRaising
+  -- ^ + Type-raising fused with Composition.
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data ParseCost = ParseCost

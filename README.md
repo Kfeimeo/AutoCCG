@@ -393,9 +393,10 @@ data CategoryNode
 Parsing is left-to-right and beam-based, not a single irreversible greedy fold.
 The parser attempts rule levels in order:
 
-1. Application only
-2. Application plus first-order harmonic Composition
-3. configured Type-raising plus Composition
+1. Application only (plus coordination and punctuation absorption)
+2. Application plus Composition
+3. plus ASP, when `rules.allow_argument_swap` is on
+4. plus configured Type-raising fused with Composition
 
 Lexical repair is triggered only after parser-level fallbacks fail. Type-raising
 is a local fused operation: it is generated only when an adjacent category can
@@ -574,8 +575,9 @@ ASP   (X\A)/B  <=>  (X/B)\A
 `A` stays on the left and `B` on the right, so word order and meaning are
 unchanged. For example `read := (S\NP)/NP` can become `(S/NP)\NP`, so
 `John read` is `S/NP` by backward Application, without Type-raising and
-Composition. ASP is available at every parser level, including Application
-only. It applies to lexical items and derived constituents, each at most once,
+Composition. ASP is a fallback level: it is tried only when Application
+(FA, BA) and Composition (B, B^n, forward and backward) both fail to derive the
+sentence, and before Type-raising. It applies to lexical items and derived constituents, each at most once,
 right after the constituent is created. A swapped category must stay within the
 depth bound (slash count and arity never change). Parse costs count ASP uses
 after Composition uses, so a lower-cost derivation avoids unnecessary swaps.

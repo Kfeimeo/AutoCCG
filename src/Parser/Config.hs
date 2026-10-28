@@ -58,7 +58,7 @@ data RuleConfig = RuleConfig
   , allowPunctuationAbsorption :: !Bool
   -- ^ @X PUNCT => X@ for non-nominal X.
   , allowArgumentSwap :: !Bool
-  -- ^ ASP, @(X\A)/B <=> (X/B)\A@, available at every parser level.
+  -- ^ ASP, @(X\A)/B <=> (X/B)\A@, as a parser level after Composition.
   } deriving (Eq, Show, Generic)
 
 data TrainingConfig = TrainingConfig

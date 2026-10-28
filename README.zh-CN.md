@@ -350,9 +350,10 @@ data CategoryNode
 解析是从左到右、基于 beam 的过程，不是单条不可回退的贪心 fold。
 解析器按顺序尝试以下规则层级：
 
-1. 仅 Application
-2. Application 加一阶同向 Composition
-3. 配置的 Type-raising 加 Composition
+1. 仅 Application（以及并列和标点吸收）
+2. Application 加 Composition
+3. 再加 ASP（开启 `rules.allow_argument_swap` 时）
+4. 再加配置的 Type-raising（与 Composition 融合）
 
 只有在解析器层级的回退全部失败后，才触发词汇修复。Type-raising 是一个局部融合操作：
 只有当相邻范畴能立即与提升后的范畴通过已启用的 Composition 规则组合时才生成。
@@ -499,7 +500,8 @@ ASP   (X\A)/B  <=>  (X/B)\A
 
 `A` 仍在左边、`B` 仍在右边，因此语序和语义都不变。例如 `read := (S\NP)/NP`
 可以变成 `(S/NP)\NP`，这样 `John read` 只用逆向函数应用就得到 `S/NP`，不再需要
-类型提升和组合。ASP 在每个解析层级都可用，包括仅应用层。它作用于词汇项和推导出的
+类型提升和组合。ASP 是一个回退层级：只有当函数应用（FA、BA）和组合（B、Bⁿ，前向和
+后向）都无法推导出整句时才会尝试，并且在类型提升之前。它作用于词汇项和推导出的
 成分，每个成分最多交换一次，并且在成分刚产生时进行。交换后的范畴必须满足深度上限
 （斜杠数和元数不会改变）。解析代价在组合次数之后统计 ASP 次数，所以代价更低的推导
 会避免不必要的交换。组合有用性过滤和右侧可达图表都考虑了 ASP，因此开启后解析器的

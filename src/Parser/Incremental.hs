@@ -5,6 +5,7 @@ module Parser.Incremental
   , Reduction (..)
   , runParser
   , parseSentence
+  , parserLevels
   , pairReductions
   , rightReachableCategories
   ) where
@@ -60,7 +61,7 @@ data Reduction = Reduction
   } deriving (Eq, Show)
 
 parseSentence :: Config -> CategoryStore -> Lexicon -> GrammarRules -> CategoryId -> [Text] -> ParseOutcome
-parseSentence config store lexicon grammarRules root tokens = tryLevels [ApplicationOnly, WithComposition, WithTypeRaising]
+parseSentence config store lexicon grammarRules root tokens = tryLevels (parserLevels config)
   where
     tryLevels [] = Failed (makeFailure tokens [])
     tryLevels (level : levels) = case runParser config level store lexicon grammarRules root tokens of
@@ -160,7 +161,7 @@ runParser config level initialStore lexicon grammarRules root tokens =
     -- after it is created, while it is on top; swapping later would make no
     -- difference because nothing can change it before it is combined.
     swapTop store state = case categoryStack state of
-      top : rest | allowArgumentSwap ruleConfig && not (itemSwapped top) ->
+      top : rest | argumentSwapAllowed config level && not (itemSwapped top) ->
         case swapWithinBounds config store (itemCategory top) of
           Just (swappedCategory, store') ->
             let cost = parseCost state
@@ -195,7 +196,7 @@ runParser config level initialStore lexicon grammarRules root tokens =
     usefulComposition store state rest result = any useful variants
       where
         variants = (result, store) : case swapWithinBounds config store result of
-          Just swapped | allowArgumentSwap ruleConfig -> [swapped]
+          Just swapped | argumentSwapAllowed config level -> [swapped]
           _ -> []
         position = inputPosition state
         reachable = IntMap.findWithDefault Set.empty position rightReachable
@@ -332,6 +333,19 @@ swapWithinBounds config store categoryId = case argumentSwap store categoryId of
   Just (swapped, store') | withinCategoryBounds config store' swapped -> Just (swapped, store')
   _ -> Nothing
 
+-- | The rule levels 'parseSentence' tries, in order.  The ASP level is
+-- skipped when ASP is disabled, since it would repeat the Composition level.
+parserLevels :: Config -> [ParseLevel]
+parserLevels config =
+  [ApplicationOnly, WithComposition]
+    ++ [WithArgumentSwap | allowArgumentSwap (rules config)]
+    ++ [WithTypeRaising]
+
+-- | ASP is a fallback after Application and Composition: it is available from
+-- the 'WithArgumentSwap' level on.
+argumentSwapAllowed :: Config -> ParseLevel -> Bool
+argumentSwapAllowed config level = allowArgumentSwap (rules config) && level >= WithArgumentSwap
+
 isApplication :: Combinator -> Bool
 isApplication combinator = combinator `elem` [ForwardApplication, BackwardApplication]
 
@@ -344,8 +358,8 @@ isApplication combinator = combinator `elem` [ForwardApplication, BackwardApplic
 -- raised, so it over-approximates what the beam can build over the same span.
 -- That makes it a sound right-context test for Composition results.  Cost is
 -- cubic in sentence length times the square of the per-span category count,
--- plus a quartic coordination pass over spans that derive CONJ.  With ASP
--- enabled every cell is closed under argument swapping.
+-- plus a quartic coordination pass over spans that derive CONJ.  From the
+-- ASP level on, every cell is closed under argument swapping.
 rightReachableCategories
   :: Config
   -> ParseLevel
@@ -390,7 +404,7 @@ rightReachableCategories config level grammarRules initialStore lexicon tokens =
        in (foldl' (flip (Set.insert . reductionResult)) found reductions, store')
     -- ASP is an involution, so one pass closes a set under swapping.
     closeUnderSwap (categorySet, store)
-      | allowArgumentSwap (rules config) = foldl' addSwap (categorySet, store) (Set.toAscList categorySet)
+      | argumentSwapAllowed config level = foldl' addSwap (categorySet, store) (Set.toAscList categorySet)
       | otherwise = (categorySet, store)
     addSwap (found, store) categoryId = case swapWithinBounds config store categoryId of
       Just (swapped, store') -> (Set.insert swapped found, store')

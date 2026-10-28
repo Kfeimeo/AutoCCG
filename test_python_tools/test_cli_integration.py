@@ -169,7 +169,7 @@ class RuleConfigCliIntegrationTest(unittest.TestCase):
             self.assertEqual(level, "WithTypeRaising")
             self.assertIn("built-in default", stderr)
             level, stderr = parse_level(root, "--config", str(config))
-            self.assertEqual(level, "ApplicationOnly")
+            self.assertEqual(level, "WithArgumentSwap")
             self.assertIn("asp.yaml", stderr)
 
     def test_parse_prefers_training_config_snapshot(self) -> None:
@@ -179,7 +179,7 @@ class RuleConfigCliIntegrationTest(unittest.TestCase):
             (root / "config.snapshot.yaml").write_text(
                 json.dumps({"rules": {"allow_argument_swap": True}}), encoding="utf-8")
             level, stderr = parse_level(root)
-            self.assertEqual(level, "ApplicationOnly")
+            self.assertEqual(level, "WithArgumentSwap")
             self.assertIn("config.snapshot.yaml", stderr)
 
     def test_inspect_candidates_uses_config_bounds(self) -> None:

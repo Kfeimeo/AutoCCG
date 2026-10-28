@@ -27,7 +27,7 @@ rules:
   allow_coordination: true
   allow_period_absorption: true
   allow_punctuation_absorption: true
-  # ASP: (X\A)/B <=> (X/B)\A, at every parser level, at most once per constituent.
+  # ASP: (X\A)/B <=> (X/B)\A, tried only after Application and Composition fail, at most once per constituent.
   allow_argument_swap: false
 
 training:
